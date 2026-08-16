@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sys
 import time
@@ -35,6 +36,8 @@ from apps.api.src.ceo_os_api.database import (
 from apps.api.src.ceo_os_api.events import EventHub
 from apps.api.src.ceo_os_api.planner import DeterministicProvider
 from apps.api.src.ceo_os_api.runtime import CeoRuntime, TaskRunner
+
+logger = logging.getLogger(__name__)
 from apps.api.src.ceo_os_api.schemas import (
     AgencyExecuteRequest,
     AgencyExecuteResponse,
@@ -146,6 +149,15 @@ from apps.api.src.ceo_os_api.schemas import (
     ResilienceHealthResponse,
     RestaurantBookingRequest,
     RestaurantBookingResponse,
+    RouterCandidateSchema,
+    RouterCreateRequest,
+    RouterDelegateRequest,
+    RouterDelegateResponse,
+    RouterFeedbackRequest,
+    RouterSearchRequest,
+    RouterSearchResponse,
+    RouterTeamRequest,
+    RouterTeamResponse,
     SecretRegisterRequest,
     SecretResponse,
     SecurityAuditResponse,
@@ -740,6 +752,127 @@ async def agent_inbox(agent_id: UUID, limit: int = Query(default=100, ge=1, le=2
     return await agent_repository.inbox(str(agent_id), limit)
 
 
+# ── Universal Agent Router Endpoints ───────────────────────────────────────────
+
+
+@app.post("/api/v1/router/search", response_model=RouterSearchResponse)
+async def router_search(body: RouterSearchRequest) -> object:
+    from agents.tools import AgentSearchTool
+
+    tool = AgentSearchTool()
+    div_dict = {"division": body.division} if body.division else {}
+    res = await tool.execute({"query": body.query, "limit": body.limit, **div_dict})
+    out = res.output
+    candidates = [
+        RouterCandidateSchema(
+            agent_id=c["agent_id"],
+            name=c["name"],
+            role=c["role"],
+            division=c["division"],
+            relevance_score=c["relevance_score"],
+            match_reasons=c.get("match_reasons", []),
+            default_tools=c.get("default_tools", []),
+            score_rating=c.get("score_rating", 5.0),
+            success_rate=c.get("success_rate", 1.0),
+        )
+        for c in out.get("candidates", [])
+    ]
+    return RouterSearchResponse(query=body.query, count=len(candidates), candidates=candidates)
+
+
+@app.get("/api/v1/router/agents/{agent_id}")
+async def router_inspect(agent_id: str) -> object:
+    from agents.tools import AgentInspectTool
+
+    tool = AgentInspectTool()
+    res = await tool.execute({"agent_id": agent_id})
+    if res.output.get("status") == "NOT_FOUND":
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+    return res.output
+
+
+@app.post("/api/v1/router/delegate", response_model=RouterDelegateResponse)
+async def router_delegate(body: RouterDelegateRequest) -> object:
+    from agents.tools import AgentDelegateTool
+
+    tool = AgentDelegateTool()
+    res = await tool.execute(
+        {
+            "agent_id": body.agent_id,
+            "task": body.task,
+            "deliverable": body.deliverable,
+            "do_not_modify_production": body.do_not_modify_production,
+        }
+    )
+    if res.output.get("status") == "NOT_FOUND":
+        raise HTTPException(status_code=404, detail=f"Agent '{body.agent_id}' not found")
+    out = res.output
+    return RouterDelegateResponse(
+        status=out.get("status", "success"),
+        agent=out.get("agent", body.agent_id),
+        role=out.get("role", "Specialist"),
+        summary=out.get("summary", ""),
+        findings=out.get("findings", []),
+        recommendations=out.get("recommendations", []),
+        evidence=out.get("evidence", []),
+        confidence=float(out.get("confidence", 0.9)),
+    )
+
+
+@app.post("/api/v1/router/team", response_model=RouterTeamResponse)
+async def router_spawn_team(body: RouterTeamRequest) -> object:
+    from agents.tools import AgentSpawnTeamTool
+
+    tool = AgentSpawnTeamTool()
+    res = await tool.execute({"objective": body.objective, "max_specialists": body.max_specialists})
+    out = res.output
+    return RouterTeamResponse(
+        status=out.get("status", "SUCCESS"),
+        objective=out.get("objective", body.objective),
+        lead_agent=out.get("lead_agent", "ceo"),
+        team_size=out.get("team_size", 1),
+        team_members=out.get("team_members", []),
+        stages_executed=out.get("stages_executed", 1),
+        stage_results=out.get("stage_results", []),
+        findings=out.get("findings", []),
+        recommendations=out.get("recommendations", []),
+        evidence=out.get("evidence", []),
+        synthesis=out.get("synthesis", ""),
+    )
+
+
+@app.post("/api/v1/router/create")
+async def router_create_agent(body: RouterCreateRequest) -> object:
+    from agents.tools import AgentCreateTool
+
+    tool = AgentCreateTool()
+    args: dict[str, Any] = {
+        "name": body.name,
+        "role": body.role,
+        "division": body.division,
+        "mission": body.mission,
+    }
+    if body.tools:
+        args["tools"] = body.tools
+    res = await tool.execute(args)
+    return res.output
+
+
+@app.post("/api/v1/router/feedback")
+async def router_feedback(body: RouterFeedbackRequest) -> object:
+    from agents.tools import get_global_agent_registry
+
+    reg = get_global_agent_registry()
+    await reg.record_task_outcome(
+        agent_id=body.agent_id,
+        success=body.success,
+        confidence=body.confidence,
+        cost=body.cost,
+        rating=body.rating,
+    )
+    return {"status": "SUCCESS", "message": f"Recorded feedback for agent '{body.agent_id}'"}
+
+
 @app.get("/api/v1/activity")
 async def list_activity(limit: int = Query(default=50, ge=1, le=200)) -> object:
     return await events.recent(limit)
@@ -1153,10 +1286,14 @@ async def interactive_chat_endpoint(
                 "I'll use the built-in reasoning engine until then."
             )
         elif "429" in error_detail:
-            user_msg = "⚠️ Rate limit hit on the AI provider. I'll retry in a moment — please try again."
+            user_msg = (
+                "⚠️ Rate limit hit on the AI provider. I'll retry in a moment — please try again."
+            )
         else:
             user_msg = f"⚠️ Execution error: {error_detail[:200]}"
-        spoken = user_msg.replace("**", "").replace("`", "").replace("##", "").replace("\n", " ").strip()
+        spoken = (
+            user_msg.replace("**", "").replace("`", "").replace("##", "").replace("\n", " ").strip()
+        )
         return {
             "task_id": task_id_str,
             "objective": body.message,

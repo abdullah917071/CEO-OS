@@ -79,6 +79,26 @@ class GeminiAuthManager:
 
         return f"{header_b64}.{payload_b64}.{sig_b64}"
 
+    def get_api_key(self) -> str | None:
+        """Check for Google AI Studio API key in environment or secrets."""
+        import os
+
+        key = (
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("CEO_OS_GEMINI_API_KEY")
+        )
+        if key and key.strip() and not key.startswith("mock_"):
+            return key.strip()
+        return None
+
+    def has_credentials(self) -> bool:
+        """Check if any valid Google credentials (service account or API key) exist."""
+        if self.get_api_key():
+            return True
+        sa = self.secrets_manager.load_service_account()
+        return bool(sa and sa.get("private_key") and sa.get("client_email"))
+
     async def obtain_access_token(
         self,
         scope: str = "https://www.googleapis.com/auth/cloud-platform",
@@ -93,9 +113,13 @@ class GeminiAuthManager:
 
         sa = self.secrets_manager.load_service_account()
         if not sa:
+            api_key = self.get_api_key()
+            if api_key:
+                # Using API key mode instead of OAuth token
+                return f"api_key:{api_key}"
             raise ValueError(
-                "No Google Cloud service account configured. "
-                "Please upload service_account.json in settings."
+                "No Google Cloud service account or GEMINI_API_KEY configured. "
+                "Please upload service_account.json in settings or set GEMINI_API_KEY."
             )
 
         signed_jwt = self._create_signed_jwt(sa, scope)

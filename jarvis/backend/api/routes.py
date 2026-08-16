@@ -274,3 +274,98 @@ async def get_sessions(limit: int = 20) -> list[dict[str, Any]]:
 async def get_logs(limit: int = 50) -> list[dict[str, Any]]:
     mgr = get_jarvis_manager()
     return list(mgr.db.get_recent_logs(limit=limit))
+
+
+class JarvisChatRequest(BaseModel):
+    message: str
+
+
+@router.post("/chat")
+async def jarvis_chat(req: JarvisChatRequest) -> dict[str, Any]:
+    """Execute voice/text directive in Jarvis and return spoken response."""
+    mgr = get_jarvis_manager()
+    raw_msg = req.message.strip()
+    clean_lower = raw_msg.lower()
+
+    # Strip wake word prefixes if present
+    for prefix in ("jarvis,", "jarvis", "hey jarvis,", "hey jarvis", "ok jarvis,", "ok jarvis"):
+        if clean_lower.startswith(prefix):
+            clean_lower = clean_lower[len(prefix) :].strip()
+            break
+
+    # Emit user transcript to WebSocket listeners
+    mgr.event_bus.emit("JARVIS_TRANSCRIPT", {"role": "user", "text": raw_msg})
+
+    tool_calls_executed: list[dict[str, Any]] = []
+    reply_text = ""
+
+    # Direct intent execution
+    if "open youtube" in clean_lower or clean_lower == "youtube":
+        q = clean_lower.replace("open youtube", "").replace("search for", "").strip()
+        args = {"query": q} if q else {}
+        res = await mgr.tool_registry.execute_tool("open_youtube", args)
+        tool_calls_executed.append({"name": "open_youtube", "arguments": args, "output": res})
+        reply_text = "Opened YouTube, sir." if not q else f"Searching YouTube for '{q}', sir."
+
+    elif clean_lower.startswith("open url ") or (
+        "open " in clean_lower and ("http" in clean_lower or ".com" in clean_lower)
+    ):
+        url = clean_lower.split("open", 1)[1].strip()
+        if not url.startswith("http"):
+            url = f"https://{url}"
+        res = await mgr.tool_registry.execute_tool("open_url", {"url": url})
+        tool_calls_executed.append({"name": "open_url", "arguments": {"url": url}, "output": res})
+        reply_text = f"Opened {url}, sir."
+
+    elif clean_lower.startswith("search google") or clean_lower.startswith("search "):
+        q = (
+            clean_lower.replace("search google for", "")
+            .replace("search google", "")
+            .replace("search", "")
+            .strip()
+        )
+        res = await mgr.tool_registry.execute_tool("search_google", {"query": q})
+        tool_calls_executed.append(
+            {"name": "search_google", "arguments": {"query": q}, "output": res}
+        )
+        reply_text = f"Searching Google for '{q}', sir."
+
+    elif "spotify" in clean_lower or "music" in clean_lower:
+        res = await mgr.tool_registry.execute_tool("open_spotify", {})
+        tool_calls_executed.append({"name": "open_spotify", "arguments": {}, "output": res})
+        reply_text = "Spotify is open and ready, sir."
+
+    elif "system stats" in clean_lower or "cpu" in clean_lower or "battery" in clean_lower:
+        res = await mgr.tool_registry.execute_tool("get_system_stats", {})
+        tool_calls_executed.append({"name": "get_system_stats", "arguments": {}, "output": res})
+        sys_info = res.get("system", "macOS")
+        reply_text = f"System status online. Running {sys_info}, sir."
+
+    elif clean_lower.startswith("open "):
+        app_name = clean_lower.replace("open ", "").strip().title()
+        res = await mgr.tool_registry.execute_tool("open_application", {"application": app_name})
+        tool_calls_executed.append(
+            {"name": "open_application", "arguments": {"application": app_name}, "output": res}
+        )
+        reply_text = f"Launched {app_name}, sir."
+
+    else:
+        # General assistance
+        reply_text = f"Understood, sir. Processing directive: '{raw_msg}'."
+
+    # Broadcast tool execution events
+    for tc in tool_calls_executed:
+        mgr.event_bus.emit(
+            "TOOL_EXECUTION",
+            {"tool_name": tc["name"], "arguments": tc["arguments"], "output": tc["output"]},
+        )
+
+    # Emit model transcript
+    mgr.event_bus.emit("JARVIS_TRANSCRIPT", {"role": "model", "text": reply_text})
+
+    return {
+        "status": "SUCCESS",
+        "response": reply_text,
+        "spoken_response": reply_text,
+        "tool_calls": tool_calls_executed,
+    }

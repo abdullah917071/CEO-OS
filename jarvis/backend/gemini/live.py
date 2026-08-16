@@ -41,16 +41,29 @@ class GeminiLiveSocket:
         project = self.config.project_id or (sa.get("project_id") if sa else "")
         location = self.config.location
 
-        # Vertex AI BidiGenerateContent WebSocket URL
-        ws_url = (
-            f"wss://{location}-aiplatform.googleapis.com/ws/"
-            f"google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
-        )
-
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
+        if token.startswith("api_key:"):
+            # Google AI Studio Gemini Live WebSocket URL
+            api_key = token.split("api_key:", 1)[1]
+            ws_url = (
+                f"wss://generativelanguage.googleapis.com/ws/"
+                f"google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key={api_key}"
+            )
+            headers = {"Content-Type": "application/json"}
+            model_resource = f"models/{self.config.model_name}"
+        else:
+            # Vertex AI BidiGenerateContent WebSocket URL
+            ws_url = (
+                f"wss://{location}-aiplatform.googleapis.com/ws/"
+                f"google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
+            )
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+            model_resource = (
+                f"projects/{project}/locations/{location}/publishers/google/models/"
+                f"{self.config.model_name}"
+            )
 
         try:
             self._ws = await websockets.connect(
@@ -63,10 +76,6 @@ class GeminiLiveSocket:
             self._is_connected = True
 
             # Send Setup Handshake
-            model_resource = (
-                f"projects/{project}/locations/{location}/publishers/google/models/"
-                f"{self.config.model_name}"
-            )
             setup_payload = {
                 "setup": {
                     "model": model_resource,

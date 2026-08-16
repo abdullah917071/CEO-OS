@@ -1,3 +1,5 @@
+"""Agent Runtime service: orchestrates persistent agent entities, policy boundaries, and delegation."""
+
 from __future__ import annotations
 
 import asyncio

@@ -1391,3 +1391,83 @@ class InteractiveChatResponse(BaseModel):
     steps: list[dict[str, Any]] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     duration_ms: float
+
+
+# ── Universal Agent Router Schemas ─────────────────────────────────────────────
+
+
+class RouterSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=5000)
+    division: str | None = None
+    limit: int = Field(default=5, ge=1, le=50)
+
+
+class RouterCandidateSchema(BaseModel):
+    agent_id: str
+    name: str
+    role: str
+    division: str
+    relevance_score: float
+    match_reasons: list[str] = Field(default_factory=list)
+    default_tools: list[str] = Field(default_factory=list)
+    score_rating: float = 5.0
+    success_rate: float = 1.0
+
+
+class RouterSearchResponse(BaseModel):
+    query: str
+    count: int
+    candidates: list[RouterCandidateSchema]
+
+
+class RouterDelegateRequest(BaseModel):
+    agent_id: str
+    task: str = Field(min_length=1, max_length=10000)
+    deliverable: str = Field(default="analysis_and_plan")
+    do_not_modify_production: bool = True
+
+
+class RouterDelegateResponse(BaseModel):
+    status: str
+    agent: str
+    role: str
+    summary: str
+    findings: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    confidence: float
+
+
+class RouterTeamRequest(BaseModel):
+    objective: str = Field(min_length=1, max_length=10000)
+    max_specialists: int = Field(default=5, ge=1, le=20)
+
+
+class RouterTeamResponse(BaseModel):
+    status: str
+    objective: str
+    lead_agent: str
+    team_size: int
+    team_members: list[dict[str, Any]]
+    stages_executed: int
+    stage_results: list[dict[str, Any]]
+    findings: list[str]
+    recommendations: list[str]
+    evidence: list[str]
+    synthesis: str
+
+
+class RouterCreateRequest(BaseModel):
+    name: str
+    role: str
+    division: str = "general"
+    mission: str
+    tools: list[str] | None = None
+
+
+class RouterFeedbackRequest(BaseModel):
+    agent_id: str
+    success: bool
+    confidence: float = 0.90
+    cost: float = 1.0
+    rating: float | None = None
