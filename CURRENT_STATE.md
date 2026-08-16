@@ -2,6 +2,10 @@
 
 Last updated: 2026-08-16
 
+- Chat-Centric Mission Control Dashboard: ChatGPT/Claude-style conversational interface centered on one primary stream with live execution visibility built around the conversation (prominent Live Step Indicator with pulse, actual progress percentage, active Agent Team stack, Tool activity chips, interactive Task Plan checklist, Human Approval dialogs, Artifact previews, and Completion cards).
+- Contextual right inspection drawer (`ContextPanel`) adapting to Agent details, Browser live sessions, macOS CUA live control, Memory provenance, and Task metrics without navigating away from the chat.
+- Minimal left navigation (`ChatSidebar`) with grouped conversation history (Today, Yesterday, Previous 7 Days, Older), + New Task button, and bottom shortcuts.
+- Global Command Palette (`⌘ K`) and Floating Parallel Task Switcher for multitasking across concurrent background agent jobs.
 - Universal Agent Registry & Dynamic Router aggregating 4 provider classes (Native permanent directors, 270+ Agency Agents specialist personas, Custom agents, and Generated dynamic on-demand agents).
 - Multi-factor candidate ranking combining TF-IDF/semantic relevance, historical success rates, average confidence, cost efficiency, and owner feedback scoring.
 - Dynamic multi-agent team assembly (`spawn_team`) with dependency graphs, parallel stage execution, and CEO synthesis.
