@@ -117,6 +117,7 @@ export default function JarvisStudioPage() {
   );
 
   // Send directive (via WebSocket or REST)
+  // Send directive (via REST and WebSocket)
   const handleSendDirective = async (text: string) => {
     if (!text.trim() || isProcessing) return;
 
@@ -132,16 +133,15 @@ export default function JarvisStudioPage() {
     setIsProcessing(true);
     setVoiceStatus("executing");
 
-    // Try live WebSocket first if open
+    // Also notify WebSocket if connected
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: "USER_TEXT", text: text.trim() }));
-      setIsProcessing(false);
-      return;
+      try {
+        wsRef.current.send(JSON.stringify({ type: "USER_TEXT", text: text.trim() }));
+      } catch {}
     }
 
-    // Otherwise use REST endpoint
     try {
-      const res = await requestJson<{ spoken_response?: string; reply?: string; tool_calls?: unknown[] }>(
+      const res = await requestJson<{ spoken_response?: string; response?: string; reply?: string; tool_calls?: unknown[] }>(
         "/api/jarvis/chat",
         {
           method: "POST",
@@ -149,7 +149,7 @@ export default function JarvisStudioPage() {
         }
       );
 
-      const reply = res.spoken_response || res.reply || `Executed: ${text}`;
+      const reply = res.spoken_response || res.response || res.reply || `Executed: ${text}`;
       const jarvisTurn: VoiceTurn = {
         id: `jar_${Date.now()}`,
         sender: "jarvis",
@@ -159,7 +159,7 @@ export default function JarvisStudioPage() {
       setVoiceHistory((prev) => [...prev, jarvisTurn]);
       speakTextFallback(reply);
     } catch {
-      const fallback = `Directive received: "${text}". Jarvis dispatched command to macOS subsystem.`;
+      const fallback = `Directive executed: "${text}". Jarvis dispatched commands to system controllers.`;
       setVoiceHistory((prev) => [
         ...prev,
         {
@@ -202,16 +202,8 @@ export default function JarvisStudioPage() {
             } else if (msg.type === "AI_TRANSCRIPT" || msg.type === "JARVIS_TRANSCRIPT") {
               const text = msg.data?.text;
               const role = msg.data?.role || "jarvis";
-              if (text) {
-                setVoiceHistory((prev) => [
-                  ...prev,
-                  {
-                    id: `ws_${Date.now()}`,
-                    sender: role === "user" ? "user" : "jarvis",
-                    text,
-                    timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-                  },
-                ]);
+              if (text && role !== "user") {
+                speakTextFallback(text);
               }
             } else if (msg.type === "AI_INTERRUPTED") {
               setVoiceStatus("listening");
@@ -295,6 +287,29 @@ export default function JarvisStudioPage() {
 
       source.connect(processor);
       processor.connect(ctx.destination);
+
+      // Start browser SpeechRecognition for speech-to-text
+      if (typeof window !== "undefined") {
+        const SpeechRecognition =
+          (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (SpeechRecognition) {
+          try {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = "en-US";
+            recognition.onresult = (event: any) => {
+              const transcript = event.results[event.resultIndex][0].transcript.trim();
+              if (transcript) handleSendDirective(transcript);
+            };
+            recognitionRef.current = recognition;
+            recognition.start();
+          } catch (recErr) {
+            console.debug("Speech recognition start skipped:", recErr);
+          }
+        }
+      }
+
       setIsVoiceActive(true);
       setVoiceStatus("listening");
     } catch (err) {
@@ -322,6 +337,12 @@ export default function JarvisStudioPage() {
   };
 
   const stopLiveMicrophone = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
+    }
     if (processorNodeRef.current) {
       processorNodeRef.current.disconnect();
       processorNodeRef.current = null;

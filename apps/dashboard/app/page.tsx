@@ -192,6 +192,17 @@ export default function JoicePage() {
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
+
+      // Speak response aloud if supported
+      if (typeof window !== "undefined" && "speechSynthesis" in window && replyText) {
+        try {
+          const cleanSpoken = (res.spoken_response || replyText).replace(/<[^>]*>/g, "").replace(/[*_#`]/g, "").trim();
+          const firstSentence = cleanSpoken.split("\n")[0] || cleanSpoken;
+          const utterance = new SpeechSynthesisUtterance(firstSentence.slice(0, 200));
+          utterance.rate = 1.05;
+          window.speechSynthesis.speak(utterance);
+        } catch {}
+      }
     } catch {
       // Graceful fallback
       setMessages((prev) => [

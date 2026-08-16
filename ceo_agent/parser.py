@@ -59,14 +59,41 @@ class CeoToolParser:
 
             try:
                 parsed: Any = json.loads(raw_match)
-                if isinstance(parsed, dict) and "name" in parsed:
-                    calls.append(
-                        CeoToolCall(
-                            name=str(parsed["name"]),
-                            arguments=parsed.get("arguments", {}),
-                            call_id=str(parsed.get("call_id", f"call_{len(calls)}")),
+                if isinstance(parsed, dict):
+                    if "name" in parsed:
+                        calls.append(
+                            CeoToolCall(
+                                name=str(parsed["name"]),
+                                arguments=parsed.get("arguments", {}),
+                                call_id=str(parsed.get("call_id", f"call_{len(calls)}")),
+                            )
                         )
-                    )
+                    elif "tool" in parsed or "function" in parsed:
+                        tool_name = str(parsed.get("tool") or parsed.get("function"))
+                        args = parsed.get("arguments") or parsed.get("parameters") or parsed.get("args") or {}
+                        calls.append(
+                            CeoToolCall(
+                                name=tool_name,
+                                arguments=args if isinstance(args, dict) else {"input": args},
+                                call_id=str(parsed.get("call_id", f"call_{len(calls)}")),
+                            )
+                        )
+                    elif "query" in parsed:
+                        calls.append(
+                            CeoToolCall(
+                                name="agents.delegate.research",
+                                arguments=parsed,
+                                call_id=str(parsed.get("call_id", f"call_{len(calls)}")),
+                            )
+                        )
+                    elif "url" in parsed:
+                        calls.append(
+                            CeoToolCall(
+                                name="browser.navigate",
+                                arguments=parsed,
+                                call_id=str(parsed.get("call_id", f"call_{len(calls)}")),
+                            )
+                        )
                 elif isinstance(parsed, list):
                     for item in parsed:
                         if isinstance(item, dict) and "name" in item:
@@ -88,18 +115,23 @@ class CeoToolParser:
         if not calls and text.strip().startswith("{") and text.strip().endswith("}"):
             try:
                 parsed = json.loads(text.strip())
-                if (
-                    isinstance(parsed, dict)
-                    and "name" in parsed
-                    and ("arguments" in parsed or "parameters" in parsed)
-                ):
-                    calls.append(
-                        CeoToolCall(
-                            name=str(parsed["name"]),
-                            arguments=parsed.get("arguments") or parsed.get("parameters") or {},
-                            call_id=str(parsed.get("call_id", "call_0")),
+                if isinstance(parsed, dict):
+                    if "name" in parsed:
+                        calls.append(
+                            CeoToolCall(
+                                name=str(parsed["name"]),
+                                arguments=parsed.get("arguments") or parsed.get("parameters") or {},
+                                call_id=str(parsed.get("call_id", "call_0")),
+                            )
                         )
-                    )
+                    elif "query" in parsed:
+                        calls.append(
+                            CeoToolCall(
+                                name="agents.delegate.research",
+                                arguments=parsed,
+                                call_id="call_0",
+                            )
+                        )
             except Exception:
                 pass
 

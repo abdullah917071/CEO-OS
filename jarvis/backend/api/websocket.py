@@ -116,10 +116,7 @@ async def jarvis_live_audio_websocket(websocket: WebSocket) -> None:
                             if mgr.active_session and mgr.active_session.is_active:
                                 await mgr.active_session.send_text_directive(text)
                             else:
-                                # Start session or dispatch directly
-                                await mgr.activate_session(trigger_source="web_chat")
-                                if mgr.active_session:
-                                    await mgr.active_session.send_text_directive(text)
+                                await mgr.execute_directive(text)
 
                     elif msg_type == "INTERRUPT":
                         mgr.playback_manager.interrupt_and_flush()

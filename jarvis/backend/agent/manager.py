@@ -237,6 +237,131 @@ class JarvisAgentManager:
         )
         logger.info("Jarvis state: %s ➔ %s", old_state.value, new_state.value)
 
+    async def execute_directive(self, text: str) -> dict[str, Any]:
+        """Execute directive, run required tools, speak response aloud, and broadcast events."""
+        raw_msg = text.strip()
+        clean_lower = raw_msg.lower()
+
+        # Strip wake word prefixes
+        for prefix in ("jarvis,", "jarvis", "hey jarvis,", "hey jarvis", "ok jarvis,", "ok jarvis"):
+            if clean_lower.startswith(prefix):
+                clean_lower = clean_lower[len(prefix) :].strip()
+                break
+
+        # Broadcast user transcript
+        self.event_bus.emit("JARVIS_TRANSCRIPT", {"role": "user", "text": raw_msg})
+
+        tool_calls_executed: list[dict[str, Any]] = []
+        reply_text = ""
+
+        # 1. Complex Task Delegation to Joice
+        if any(
+            kw in clean_lower
+            for kw in (
+                "analyze",
+                "strategy",
+                "competitor",
+                "research",
+                "suppremo",
+                "plan a",
+                "build a",
+                "delegate to joice",
+                "ask joice",
+                "write code",
+                "financial report",
+                "swarm",
+            )
+        ):
+            res = await self.tool_registry.execute_tool("delegate_to_joice", {"goal": raw_msg})
+            tool_calls_executed.append(
+                {"name": "delegate_to_joice", "arguments": {"goal": raw_msg}, "output": res}
+            )
+            reply_text = "I'll ask Joice to handle that."
+
+        # 2. Spotify & Media Control
+        elif any(k in clean_lower for k in ("spotify", "music", "play focus", "play song")):
+            res = await self.tool_registry.execute_tool("open_spotify", {})
+            tool_calls_executed.append({"name": "open_spotify", "arguments": {}, "output": res})
+            reply_text = "Opening Spotify."
+
+        # 3. Audio & Volume Controls
+        elif "mute" in clean_lower and "unmute" not in clean_lower:
+            res = await self.tool_registry.execute_tool("mute", {})
+            tool_calls_executed.append({"name": "mute", "arguments": {}, "output": res})
+            reply_text = "Muted."
+
+        elif "unmute" in clean_lower:
+            res = await self.tool_registry.execute_tool("unmute", {})
+            tool_calls_executed.append({"name": "unmute", "arguments": {}, "output": res})
+            reply_text = "Unmuted."
+
+        elif any(k in clean_lower for k in ("volume down", "lower volume", "turn volume down")):
+            res = await self.tool_registry.execute_tool("set_volume", {"level": 30})
+            tool_calls_executed.append({"name": "set_volume", "arguments": {"level": 30}, "output": res})
+            reply_text = "Volume lowered."
+
+        elif any(k in clean_lower for k in ("volume up", "raise volume", "turn volume up")):
+            res = await self.tool_registry.execute_tool("set_volume", {"level": 70})
+            tool_calls_executed.append({"name": "set_volume", "arguments": {"level": 70}, "output": res})
+            reply_text = "Volume raised."
+
+        # 4. System Status & Telemetry
+        elif any(k in clean_lower for k in ("system stats", "cpu", "battery", "system status", "health")):
+            res = await self.tool_registry.execute_tool("get_system_stats", {})
+            tool_calls_executed.append({"name": "get_system_stats", "arguments": {}, "output": res})
+            sys_info = res.get("system", "macOS")
+            reply_text = f"System online: {sys_info}."
+
+        # 5. Application Launch
+        elif clean_lower.startswith("open "):
+            app_target = clean_lower.replace("open ", "").strip()
+            if "youtube" in app_target:
+                q = app_target.replace("youtube", "").replace("search for", "").strip()
+                args = {"query": q} if q else {}
+                res = await self.tool_registry.execute_tool("open_youtube", args)
+                tool_calls_executed.append({"name": "open_youtube", "arguments": args, "output": res})
+                reply_text = "Opening YouTube." if not q else f"Searching YouTube for '{q}'."
+            elif app_target.startswith("http") or ".com" in app_target or ".org" in app_target:
+                url = app_target if app_target.startswith("http") else f"https://{app_target}"
+                res = await self.tool_registry.execute_tool("open_url", {"url": url})
+                tool_calls_executed.append({"name": "open_url", "arguments": {"url": url}, "output": res})
+                reply_text = "Opening URL."
+            else:
+                app_name = app_target.title()
+                res = await self.tool_registry.execute_tool("open_application", {"application": app_name})
+                tool_calls_executed.append({"name": "open_application", "arguments": {"application": app_name}, "output": res})
+                reply_text = f"Opening {app_name}."
+
+        # 6. Web Search
+        elif clean_lower.startswith("search ") or "search google" in clean_lower:
+            q = clean_lower.replace("search google for", "").replace("search google", "").replace("search for", "").replace("search", "").strip()
+            res = await self.tool_registry.execute_tool("search_google", {"query": q})
+            tool_calls_executed.append({"name": "search_google", "arguments": {"query": q}, "output": res})
+            reply_text = f"Searching Google for '{q}'."
+
+        else:
+            reply_text = f"Processing directive: {raw_msg}."
+
+        # Broadcast tool events
+        for tc in tool_calls_executed:
+            self.event_bus.emit(
+                "TOOL_EXECUTION",
+                {"tool_name": tc["name"], "arguments": tc["arguments"], "output": tc["output"]},
+            )
+
+        # Broadcast model transcript
+        self.event_bus.emit("JARVIS_TRANSCRIPT", {"role": "model", "text": reply_text})
+
+        # Speak aloud on macOS speakers
+        self.playback_manager.speak_text(reply_text)
+
+        return {
+            "status": "SUCCESS",
+            "response": reply_text,
+            "spoken_response": reply_text,
+            "tool_calls": tool_calls_executed,
+        }
+
     def get_status(self) -> dict[str, Any]:
         """Aggregate real-time system status."""
         usage = self.usage_tracker.get_today_stats()

@@ -17,7 +17,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    cors_origins: str = "http://localhost:3000,http://localhost:3005"
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,"
+        "http://localhost:3004,http://localhost:3005,http://127.0.0.1:3000,http://127.0.0.1:3001,"
+        "http://127.0.0.1:3002,http://127.0.0.1:3003,http://127.0.0.1:3004,http://127.0.0.1:3005"
+    )
     computer_helper_path: Path = Path("computer/macos_helper/.build/release/ceo-os-mac-helper")
     computer_effects_enabled: bool = False
     computer_allowed_bundle_ids: str = ""

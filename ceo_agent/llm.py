@@ -274,7 +274,7 @@ class OpenAiCompatibleCeoEngine(CeoLlmProtocol):
         base_url = (self.base_url or "https://openrouter.ai/api/v1").rstrip("/")
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=20.0) as client:
                 resp = await client.post(
                     f"{base_url}/chat/completions",
                     headers={
