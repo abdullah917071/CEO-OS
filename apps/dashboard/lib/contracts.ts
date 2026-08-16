@@ -353,4 +353,87 @@ export type InteractiveChatResponse = {
   }>;
   evidence: string[];
   duration_ms: number;
+  safe_summary?: Record<string, unknown>;
 };
+
+// ── Chat-Centric Mission Control Contracts ──────────────────────────────────
+export type ExecutionEvent = {
+  id: string;
+  taskId: string;
+  timestamp: string;
+  source: "ceo" | "agent" | "browser" | "computer" | "memory" | "tool" | "router" | "system";
+  status: "running" | "success" | "failed" | "blocked" | "waiting";
+  title: string;
+  summary?: string;
+  agentId?: string;
+  agentName?: string;
+  toolName?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type TaskPlanStep = {
+  id: string;
+  title: string;
+  status: "completed" | "in_progress" | "pending" | "failed";
+  details?: string;
+};
+
+export type AgentActiveMember = {
+  id: string;
+  name: string;
+  role: string;
+  division?: string;
+  status: "working" | "idle" | "waiting" | "completed";
+  currentAction?: string;
+  toolsUsed?: string[];
+  progress?: number;
+  lastOutput?: string;
+};
+
+export type ToolExecutionChip = {
+  id: string;
+  type: "browser" | "search" | "memory" | "computer" | "terminal" | "filesystem" | "tool";
+  title: string;
+  status: "running" | "success" | "failed";
+  input?: string;
+  result?: string;
+  durationMs?: number;
+  evidence?: string;
+};
+
+export type HumanApprovalCardData = {
+  id: string;
+  taskId: string;
+  actionName: string;
+  description: string;
+  riskLevel: "R1" | "R2" | "R3" | "R4";
+  targetRecipient?: string;
+  subject?: string;
+  commandString?: string;
+  affectedPath?: string;
+  status: "pending" | "approved" | "rejected";
+};
+
+export type ArtifactCardData = {
+  id: string;
+  title: string;
+  type: "website" | "document" | "code" | "report" | "image" | "spreadsheet";
+  description?: string;
+  previewUrl?: string;
+  screenshotUrl?: string;
+  filesChanged?: number;
+  additions?: number;
+  deletions?: number;
+  content?: string;
+};
+
+export type ConversationItem = {
+  id: string;
+  title: string;
+  preview: string;
+  updatedAt: string;
+  category: "today" | "yesterday" | "previous_7_days" | "older";
+  status?: "running" | "completed" | "failed" | "idle";
+  activeTaskCount?: number;
+};
+

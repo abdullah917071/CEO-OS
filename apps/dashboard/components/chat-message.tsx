@@ -20,9 +20,10 @@ export interface ReActStep {
 
 export interface ChatMessage {
   id: string;
-  sender: "user" | "jarvis" | "system" | "action";
+  sender: "user" | "jarvis" | "ceo" | "system" | "action";
   text: string;
   thought?: string;
+  evidence?: string[];
   toolCalls?: ToolExecution[];
   steps?: ReActStep[];
   durationMs?: number;
@@ -35,7 +36,7 @@ export interface ChatMessage {
 
 interface ChatBubbleProps {
   message: ChatMessage;
-  onSpeak: (text: string) => void;
+  onSpeak?: (text: string) => void;
 }
 
 const SENDER_CONFIG = {
@@ -45,6 +46,13 @@ const SENDER_CONFIG = {
     align: "items-end",
     bubble: "bg-gradient-to-br from-cyan-600/90 to-blue-700/90 text-white rounded-br-sm",
     avatarClass: "bg-cyan-700 text-white",
+  },
+  ceo: {
+    label: "CEO AI",
+    avatar: "👑",
+    align: "items-start",
+    bubble: "bg-slate-900/95 border border-cyan-500/30 text-slate-100 rounded-bl-sm",
+    avatarClass: "bg-gradient-to-br from-amber-500 to-yellow-600 text-black font-bold",
   },
   jarvis: {
     label: "Jarvis",
@@ -81,7 +89,7 @@ export function ChatBubble({ message, onSpeak }: ChatBubbleProps) {
   const [thoughtExpanded, setThoughtExpanded] = useState(false);
   const [stepsExpanded, setStepsExpanded] = useState(false);
 
-  const config = SENDER_CONFIG[message.sender];
+  const config = SENDER_CONFIG[message.sender] || SENDER_CONFIG.ceo;
 
   // Action confirmation card
   if (message.sender === "action") {
@@ -221,7 +229,7 @@ export function ChatBubble({ message, onSpeak }: ChatBubbleProps) {
             <div className="mt-2 flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => onSpeak(message.spokenResponse || message.text)}
+                onClick={() => onSpeak && onSpeak(message.spokenResponse || message.text)}
                 className="inline-flex items-center gap-1 text-[11px] text-cyan-400/70 hover:text-cyan-300 font-mono transition-colors"
                 title="Speak again"
               >
@@ -235,7 +243,7 @@ export function ChatBubble({ message, onSpeak }: ChatBubbleProps) {
   );
 }
 
-export function ThinkingBubble() {
+export function ThinkingBubble({ text }: { text?: string } = {}) {
   return (
     <div className="flex items-end gap-2">
       <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-sm">
@@ -244,7 +252,7 @@ export function ThinkingBubble() {
       <div className="max-w-[70%] rounded-2xl rounded-bl-sm bg-slate-900/95 border border-slate-700/80 px-4 py-3 shadow-lg">
         <div className="flex items-center gap-2 text-xs font-mono text-cyan-400">
           <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />
-          <span className="animate-pulse">ReAct Reasoning...</span>
+          <span className="animate-pulse">{text || "ReAct Reasoning..."}</span>
         </div>
         <div className="mt-1.5 text-[11px] font-mono text-slate-400 animate-pulse">
           Evaluating → Routing → Dispatching → Synthesizing
