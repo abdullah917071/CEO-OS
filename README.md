@@ -210,7 +210,7 @@ CEO-OS/
 ### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/your-username/CEO-OS.git
+git clone https://github.com/abdullah917071/CEO-OS.git
 cd CEO-OS
 cp .env.example .env
 # Edit .env with your API keys
