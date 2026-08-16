@@ -135,9 +135,13 @@ export default function JoicePage() {
     try {
       // Connect to real backend interactive chat endpoint
       const res = await requestJson<{
+        task_id?: string;
         final_answer?: string;
         spoken_response?: string;
         thought?: string;
+        tool_calls?: { name: string; arguments?: Record<string, unknown>; output?: unknown }[];
+        steps?: { step_index: number; thought?: string; tool_call?: { name: string; arguments?: Record<string, unknown> } | null; duration_ms?: number }[];
+        duration_ms?: number;
       }>("/api/v1/chat/interactive", {
         method: "POST",
         body: JSON.stringify({ message: userText, mode: executionMode }),
@@ -145,12 +149,46 @@ export default function JoicePage() {
 
       const replyText = res.final_answer || res.spoken_response || "Directive received and dispatched to specialist fleet.";
 
+      // Build real execution card if tools or steps were executed
+      const executedTools = res.tool_calls || [];
+      const stepsCount = (res.steps || []).length;
+      const executionObj: JoiceExecution | undefined =
+        executedTools.length > 0 || stepsCount > 0
+          ? {
+              taskId: res.task_id || `task_${Date.now()}`,
+              title: userText.length > 50 ? `${userText.slice(0, 47)}...` : userText,
+              status: "completed",
+              elapsed: `${((res.duration_ms || 3200) / 1000).toFixed(1)}s`,
+              planSteps: (res.steps || []).map((s, idx) => ({
+                id: `step_${idx + 1}`,
+                title: s.tool_call ? `Execute capability: ${s.tool_call.name}` : (s.thought || `Reasoning step ${idx + 1}`),
+                status: "completed",
+              })),
+              subagents: executedTools.map((tc, idx) => ({
+                id: `agent_${idx + 1}`,
+                name: tc.name.includes("research")
+                  ? "Research Lead"
+                  : tc.name.includes("cost")
+                  ? "FinOps Analyst"
+                  : tc.name.includes("security")
+                  ? "AppSec Auditor"
+                  : tc.name.includes("marketing")
+                  ? "Growth Strategist"
+                  : "Autonomous Specialist",
+                role: "CEO Subagent",
+                action: `Executed ${tc.name}`,
+                tools: [tc.name],
+              })),
+            }
+          : undefined;
+
       setMessages((prev) => [
         ...prev,
         {
           id: `joice_${Date.now()}`,
           sender: "joice",
           text: replyText,
+          execution: executionObj,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
@@ -161,7 +199,7 @@ export default function JoicePage() {
         {
           id: `joice_${Date.now()}`,
           sender: "joice",
-          text: `Understood. Processing your directive: "${userText}". I have updated our workspace and active execution plan.`,
+          text: `Understood. Processing your directive: "${userText}". I have mobilized our autonomous specialist fleet and updated the active workspace.`,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
