@@ -1,786 +1,454 @@
 "use client";
 
-/**
- * CEO OS — Chat-Centric Mission Control Dashboard
- *
- * Primary interaction model: Unified conversation with real-time autonomous execution
- * and integrated Jarvis voice assistant with bidirectional speech synthesis & recognition.
- */
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { AppShell } from "../components/app-shell";
+import {
+  JoiceIcon,
+  MicIcon,
+  PaperclipIcon,
+  ArrowUpIcon,
+  CheckIcon,
+  ChevronRightIcon,
+} from "../components/icons";
+import { requestJson } from "../lib/api";
 
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
-import { ChatBubble, ThinkingBubble } from "../components/chat-message";
-import type { ChatMessage } from "../components/chat-message";
-import { LiveTaskCard } from "../components/live-task-card";
-import type { LiveTask } from "../components/live-task-card";
-import { ChatComposer } from "../components/chat-composer";
-import { ChatSidebar } from "../components/chat-shell";
-import { ContextPanel } from "../components/context-panel";
-import type { ContextPanelData } from "../components/context-panel";
-import { CommandPalette } from "../components/command-palette";
-import { TaskSwitcher } from "../components/task-switcher";
-import type { RunningTaskItem } from "../components/task-switcher";
-import { VoiceOrb } from "../components/voice-orb";
-import { requestJson, WS } from "../lib/api";
-import type {
-  AgentActiveMember,
-  ArtifactCardData,
-  ConversationItem,
-  InteractiveChatResponse,
-} from "../lib/contracts";
+interface PlanStep {
+  id: string;
+  title: string;
+  status: "completed" | "running" | "pending";
+}
 
-/* ─── Initial Demo Conversation & Tasks ────────────────────────────────────── */
-const INITIAL_CONVERSATIONS: ConversationItem[] = [
+interface ActiveSubagent {
+  id: string;
+  name: string;
+  role: string;
+  action: string;
+  tools: string[];
+}
+
+interface JoiceExecution {
+  taskId: string;
+  title: string;
+  status: "running" | "completed" | "failed";
+  elapsed: string;
+  planSteps: PlanStep[];
+  subagents: ActiveSubagent[];
+  summary?: string;
+}
+
+interface ChatItem {
+  id: string;
+  sender: "user" | "joice" | "system";
+  text: string;
+  execution?: JoiceExecution;
+  timestamp: string;
+}
+
+const INITIAL_MESSAGES: ChatItem[] = [
   {
-    id: "conv-suppremo-1",
-    title: "Suppremo Competitor & Market Research",
-    preview: "11 competitors analyzed, pricing models compared...",
-    updatedAt: "Just now",
-    category: "today",
-    status: "running",
+    id: "msg-1",
+    sender: "user",
+    text: "Find 10 competitors to Suppremo, analyze their pricing, compare their apps, and give me strategic recommendations.",
+    timestamp: "18:02",
   },
   {
-    id: "conv-landing-2",
-    title: "Build Responsive Landing Page",
-    preview: "React + Tailwind hero section generated...",
-    updatedAt: "2h ago",
-    category: "today",
-    status: "completed",
-  },
-  {
-    id: "conv-ads-3",
-    title: "Analyze Google Ads Spend",
-    preview: "Cost per acquisition anomaly detected...",
-    updatedAt: "Yesterday",
-    category: "yesterday",
-    status: "completed",
-  },
-  {
-    id: "conv-backend-4",
-    title: "Fix CEO OS Backend Router",
-    preview: "Universal router registered with 270+ agents...",
-    updatedAt: "3 days ago",
-    category: "previous_7_days",
-    status: "completed",
-  },
-  {
-    id: "conv-flights-5",
-    title: "Research Flight & Hotel Rates",
-    preview: "Checked Google Flights and Expedia API...",
-    updatedAt: "2 weeks ago",
-    category: "older",
-    status: "completed",
+    id: "msg-2",
+    sender: "joice",
+    text: "I have analyzed your objective and assembled a dedicated 3-agent specialist team (Research Lead, Pricing Analyst, and Sentiment Auditor). We are currently evaluating merchant commission structures and Play Store feedback.",
+    execution: {
+      taskId: "task_suppremo_growth",
+      title: "Suppremo Competitor & Pricing Analysis",
+      status: "running",
+      elapsed: "04:18",
+      planSteps: [
+        { id: "s1", title: "Understand objective & business context", status: "completed" },
+        { id: "s2", title: "Discover 10 direct and indirect competitors", status: "completed" },
+        { id: "s3", title: "Analyze pricing & merchant commission models", status: "running" },
+        { id: "s4", title: "Compare mobile app UX & customer sentiment", status: "pending" },
+        { id: "s5", title: "Formulate strategic differentiation plan", status: "pending" },
+      ],
+      subagents: [
+        {
+          id: "agent_pricing",
+          name: "Pricing Analyst",
+          role: "Financial Specialist",
+          action: "Scraping merchant commission rate structures and surge pricing models",
+          tools: ["browser.navigate", "search.google"],
+        },
+        {
+          id: "agent_sentiment",
+          name: "Sentiment Auditor",
+          role: "UX Researcher",
+          action: "Synthesizing 140+ store reviews for delivery pain points",
+          tools: ["browser.inspect"],
+        },
+      ],
+    },
+    timestamp: "18:02",
   },
 ];
 
-const INITIAL_TASK: LiveTask = {
-  id: "task_suppremo_growth",
-  title: "Suppremo Growth & Competitor Analysis",
-  objective: "Find 10 competitors to Suppremo, analyze their pricing, compare their apps, and formulate differentiated strategic recommendations.",
-  status: "running",
-  progress: 78,
-  currentStep: "Analyzing competitor pricing models & commission structures",
-  previousStep: "Found 11 food & delivery competitors",
-  nextStep: "Review customer sentiment and Play Store feedback",
-  elapsedTime: "08:42",
-  agentMembers: [
-    {
-      id: "agent_res_lead",
-      name: "Research Lead",
-      role: "Lead Strategist",
-      status: "working",
-      currentAction: "Coordinating parallel competitor discovery across web & Play Store.",
-      toolsUsed: ["agent.search", "memory.search"],
-      progress: 90,
-      lastOutput: "Identified Zomato, Swiggy, EatClub, MagicPin, Zepto, Blinkit as direct delivery competitors.",
-    },
-    {
-      id: "agent_pricing_analyst",
-      name: "Pricing Analyst",
-      role: "Financial Specialist",
-      status: "working",
-      currentAction: "Scraping merchant commission rate structures and surge pricing models.",
-      toolsUsed: ["browser.navigate", "search.google"],
-      progress: 75,
-      lastOutput: "Average industry merchant take-rate: 18-24% + delivery fee. Opportunity for flat-rate subscription model.",
-    },
-    {
-      id: "agent_review_eval",
-      name: "Sentiment Auditor",
-      role: "UX Researcher",
-      status: "working",
-      currentAction: "Synthesizing 140+ recent store reviews for delivery pain points.",
-      toolsUsed: ["browser.inspect"],
-      progress: 60,
-      lastOutput: "Key customer complaint across competitors: hidden platform charges and delayed refund resolution.",
-    },
-  ],
-  toolChips: [
-    {
-      id: "tool_1",
-      type: "browser",
-      title: "Visiting swiggy.com/partner",
-      status: "running",
-      input: "URL: https://www.swiggy.com/partner-with-us",
-      result: "Extracted merchant onboarding commission tiers (22% base).",
-      durationMs: 420,
-    },
-    {
-      id: "tool_2",
-      type: "search",
-      title: "Google: 'food delivery commission India 2026'",
-      status: "success",
-      input: "query: food delivery merchant commission India 2026",
-      result: "Top 5 industry reports indexed.",
-      durationMs: 280,
-    },
-    {
-      id: "tool_3",
-      type: "memory",
-      title: "Retrieved 5 Suppremo strategic notes",
-      status: "success",
-      input: "subject: Suppremo business model & margin goals",
-      result: "Found note on 12% target operating margin.",
-      durationMs: 85,
-    },
-    {
-      id: "tool_4",
-      type: "computer",
-      title: "macOS CUA: Chrome active",
-      status: "success",
-      input: "focus application: Google Chrome",
-      result: "Window focused, viewport 1920x1080.",
-      durationMs: 140,
-    },
-  ],
-  events: [
-    {
-      id: "evt_1",
-      taskId: "task_suppremo_growth",
-      timestamp: "18:02:10",
-      source: "ceo",
-      status: "success",
-      title: "Objective analyzed and execution plan decomposed",
-      summary: "CEO formulated 6-step staged research strategy.",
-    },
-    {
-      id: "evt_2",
-      taskId: "task_suppremo_growth",
-      timestamp: "18:02:12",
-      source: "router",
-      status: "success",
-      title: "Dynamic router assembled specialist team",
-      summary: "Selected Research Lead, Pricing Analyst, and Sentiment Auditor.",
-    },
-    {
-      id: "evt_3",
-      taskId: "task_suppremo_growth",
-      timestamp: "18:03:45",
-      source: "browser",
-      status: "success",
-      title: "Navigated to Zomato & Swiggy partner portals",
-      summary: "Extracted merchant pricing data.",
-    },
-    {
-      id: "evt_4",
-      taskId: "task_suppremo_growth",
-      timestamp: "18:06:20",
-      source: "agent",
-      status: "running",
-      title: "Pricing Analyst comparing delivery fee breakdown",
-      summary: "Computing average order value margins.",
-    },
-  ],
-  planSteps: [
-    { id: "p1", title: "Understand objective & business context", status: "completed" },
-    { id: "p2", title: "Discover 10 direct and indirect competitors", status: "completed" },
-    { id: "p3", title: "Analyze pricing & merchant commission models", status: "in_progress" },
-    { id: "p4", title: "Compare mobile app UX & customer sentiment", status: "pending" },
-    { id: "p5", title: "Formulate strategic differentiation plan", status: "pending" },
-    { id: "p6", title: "Generate CEO executive report", status: "pending" },
-  ],
-  computerState: {
-    activeApp: "Google Chrome",
-    action: "Extracting merchant fee schedule",
-    screenshotUrl: "",
-  },
-  browserState: {
-    currentUrl: "https://www.swiggy.com/partner-with-us",
-    pagesCount: 12,
-    visitedDomains: ["zomato.com", "swiggy.com", "eatclub.in", "magicpin.in", "zeptonow.com"],
-  },
-};
-
-export default function MissionControlPage() {
-  const [conversations, setConversations] = useState<ConversationItem[]>(INITIAL_CONVERSATIONS);
-  const [activeConvId, setActiveConvId] = useState<string>("conv-suppremo-1");
-
-  // Messages in active conversation
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "msg-1",
-      sender: "user",
-      text: "Find 10 competitors to Suppremo, analyze their pricing, compare their apps, and give me recommendations.",
-      timestamp: "18:02",
-    },
-    {
-      id: "msg-2",
-      sender: "ceo",
-      text: "I am on it. I have analyzed your objective, selected the optimal research workflow via our Agent Router, and spawned 3 specialist agents to execute this in parallel.",
-      thought: "Formulated multi-agent research team. Bound Browser, Search, and Memory capabilities with least-privilege scoping.",
-      timestamp: "18:02",
-    },
-  ]);
-
-  // Live Task State inside conversation
-  const [activeLiveTask, setActiveLiveTask] = useState<LiveTask | null>(INITIAL_TASK);
+export default function JoicePage() {
+  const [messages, setMessages] = useState<ChatItem[]>(INITIAL_MESSAGES);
+  const [inputPrompt, setInputPrompt] = useState("");
+  const [executionMode, setExecutionMode] = useState("Auto");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isVoiceActive, setIsVoiceActive] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [activeTask] = useState<JoiceExecution | null>(INITIAL_MESSAGES[1].execution || null);
 
-  // Contextual Right Panel State
-  const [isContextOpen, setIsContextOpen] = useState(true);
-  const [contextData, setContextData] = useState<ContextPanelData>({
-    mode: "default",
-    taskOverview: {
-      taskId: "task_suppremo_growth",
-      title: "Suppremo Growth Research",
-      status: "Running",
-      progress: 78,
-      agentCount: 3,
-      toolCount: 6,
-      actionsCount: 27,
-      elapsed: "08:42",
-      model: "Gemini 3.7 Flash",
-      reasoning: "High",
-      cost: "₹2.38",
-      tokens: "28.4k",
-    },
-  });
+  const feedEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Command Palette & Running Tasks
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const recognitionRef = useRef<any>(null);
-
-  // Auto-scroll chat
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    feedEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, activeLiveTask, scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
-  // Voice synthesis helper
-  const speakText = useCallback(
-    (textToSpeak: string) => {
-      if (isMuted || typeof window === "undefined" || !("speechSynthesis" in window)) return;
-      window.speechSynthesis.cancel();
-      const clean = textToSpeak.replace(/<[^>]*>/g, "").replace(/[*_#`]/g, "");
-      const utterance = new SpeechSynthesisUtterance(clean);
-      utterance.rate = 1.05;
-      utterance.pitch = 1.0;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
-    },
-    [isMuted]
-  );
+  // Auto-grow composer textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+    }
+  }, [inputPrompt]);
 
-  // Handle sending a directive
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim()) return;
+  const handleSend = async () => {
+    if (!inputPrompt.trim() || isProcessing) return;
 
-    const userMsgId = `user_${Date.now()}`;
-    const newMsg: ChatMessage = {
-      id: userMsgId,
+    const userText = inputPrompt.trim();
+    setInputPrompt("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+    const userMsg: ChatItem = {
+      id: `user_${Date.now()}`,
       sender: "user",
-      text: text.trim(),
+      text: userText,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
-    setMessages((prev) => [...prev, newMsg]);
+    setMessages((prev) => [...prev, userMsg]);
     setIsProcessing(true);
 
-    const isJarvisDirective = text.toLowerCase().includes("jarvis");
-
     try {
-      if (isJarvisDirective) {
-        // Execute voice directive via Jarvis chat endpoint
-        const res = await requestJson<{ spoken_response?: string; reply?: string; tool_calls?: unknown[] }>(
-          "/api/jarvis/chat",
-          {
-            method: "POST",
-            body: JSON.stringify({ message: text.trim() }),
-          }
-        );
+      // Connect to real backend interactive chat endpoint
+      const res = await requestJson<{
+        final_answer?: string;
+        spoken_response?: string;
+        thought?: string;
+      }>("/api/v1/chat/interactive", {
+        method: "POST",
+        body: JSON.stringify({ message: userText, mode: executionMode }),
+      });
 
-        const reply = res.spoken_response || res.reply || `Executed: ${text}`;
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `jarvis_${Date.now()}`,
-            sender: "jarvis",
-            text: reply,
-            spokenResponse: reply,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
-        speakText(reply);
-      } else {
-        // Execute CEO AI task
-        const res = await requestJson<InteractiveChatResponse>("/api/v1/chat/interactive", {
-          method: "POST",
-          body: JSON.stringify({ message: text.trim(), task_id: `task_${Date.now()}` }),
-        });
+      const replyText = res.final_answer || res.spoken_response || "Directive received and dispatched to specialist fleet.";
 
-        const replyText = res.final_answer || res.spoken_response || "Directive received and executed.";
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `ceo_${Date.now()}`,
-            sender: "ceo",
-            text: replyText,
-            thought: res.thought,
-            evidence: res.evidence,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
-        if (isVoiceActive) {
-          speakText(replyText);
-        }
-      }
-    } catch (err) {
-      console.warn("Backend chat request fallback:", err);
-      const fallbackReply = `Understood. Processing your directive: "${text}". I have assigned the relevant specialist agents.`;
       setMessages((prev) => [
         ...prev,
         {
-          id: `ceo_${Date.now()}`,
-          sender: "ceo",
-          text: fallbackReply,
+          id: `joice_${Date.now()}`,
+          sender: "joice",
+          text: replyText,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
-      if (isVoiceActive) {
-        speakText(fallbackReply);
-      }
+    } catch {
+      // Graceful fallback
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `joice_${Date.now()}`,
+          sender: "joice",
+          text: `Understood. Processing your directive: "${userText}". I have updated our workspace and active execution plan.`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // Web Speech Recognition setup
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition =
-        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = false;
-        recognition.lang = "en-US";
-
-        recognition.onresult = (event: any) => {
-          const current = event.resultIndex;
-          const transcript = event.results[current][0].transcript.trim();
-          if (transcript) {
-            handleSendMessage(transcript);
-          }
-        };
-
-        recognition.onerror = (event: any) => {
-          console.warn("Speech recognition error:", event.error);
-        };
-
-        recognitionRef.current = recognition;
-      }
-    }
-  }, []);
-
-  // Toggle voice recognition
-  useEffect(() => {
-    if (recognitionRef.current) {
-      if (isVoiceActive) {
-        try {
-          recognitionRef.current.start();
-        } catch {}
-      } else {
-        try {
-          recognitionRef.current.stop();
-        } catch {}
-      }
-    }
-  }, [isVoiceActive]);
-
-  // Inspecting agent in right panel
-  const handleSelectAgent = (agent: AgentActiveMember) => {
-    setContextData({
-      mode: "agent",
-      agent,
-    });
-    setIsContextOpen(true);
-  };
-
-  // Inspecting browser in right panel
-  const handleSelectBrowser = () => {
-    setContextData({
-      mode: "browser",
-      browser: {
-        currentUrl: activeLiveTask?.browserState?.currentUrl || "https://www.google.com",
-        visitedPages: [
-          { url: "https://www.zomato.com/partner", title: "Zomato For Enterprise", status: "visited" },
-          { url: "https://www.swiggy.com/partner-with-us", title: "Swiggy Partner Onboarding", status: "current" },
-          { url: "https://eatclub.in", title: "EatClub Superfast Food", status: "visited" },
-          { url: "https://magicpin.in/merchant", title: "Magicpin Merchant Hub", status: "pending" },
-        ],
-        extractedSummary: "Extracted tiered commission models (18-24%) across major aggregator platforms.",
-      },
-    });
-    setIsContextOpen(true);
-  };
-
-  // Inspecting computer control in right panel
-  const handleSelectComputer = () => {
-    setContextData({
-      mode: "computer",
-      computer: {
-        activeApp: activeLiveTask?.computerState?.activeApp || "Google Chrome",
-        action: activeLiveTask?.computerState?.action || "Focusing active window",
-        cuaStatus: "active",
-        screenshotUrl: activeLiveTask?.computerState?.screenshotUrl,
-        mouseX: 54,
-        mouseY: 42,
-      },
-    });
-    setIsContextOpen(true);
-  };
-
-  // Inspecting artifact
-  const handleSelectArtifact = (artifact: ArtifactCardData) => {
-    setContextData({
-      mode: "artifact",
-      artifact,
-    });
-    setIsContextOpen(true);
-  };
-
-  // Approving an action
-  const handleApproveAction = (approvalId: string) => {
-    if (activeLiveTask && activeLiveTask.approvalRequest) {
-      const approval = activeLiveTask.approvalRequest;
-      setActiveLiveTask({
-        ...activeLiveTask,
-        approvalRequest: {
-          ...approval,
-          status: "approved",
-        },
-      });
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `sys_${Date.now()}`,
-          sender: "system",
-          text: `✓ Authorized action '${approval.actionName}'. Execution resumed.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
     }
   };
 
-  // Rejecting an action
-  const handleRejectAction = (approvalId: string) => {
-    if (activeLiveTask && activeLiveTask.approvalRequest) {
-      const approval = activeLiveTask.approvalRequest;
-      setActiveLiveTask({
-        ...activeLiveTask,
-        approvalRequest: {
-          ...approval,
-          status: "rejected",
-        },
-      });
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `sys_${Date.now()}`,
-          sender: "system",
-          text: `✕ Action '${approval.actionName}' was denied by user.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    }
-  };
+  const contextContent = (
+    <>
+      <div className="contextPanelHeader">
+        <span>Execution Context</span>
+        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>Live</span>
+      </div>
 
-  // Adding dynamic instruction to running task
-  const handleAddInstruction = (taskId: string, instruction: string) => {
-    if (activeLiveTask) {
-      const updatedSteps = [
-        ...activeLiveTask.planSteps,
-        { id: `custom_${Date.now()}`, title: instruction, status: "pending" as const },
-      ];
-      setActiveLiveTask({
-        ...activeLiveTask,
-        planSteps: updatedSteps,
-      });
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `user_${Date.now()}`,
-          sender: "user",
-          text: `Add instruction: "${instruction}"`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-        {
-          id: `ceo_${Date.now()}`,
-          sender: "ceo",
-          text: `Added instruction "${instruction}" to active execution plan without restarting.`,
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        },
-      ]);
-    }
-  };
+      <div className="contextPanelBody">
+        {/* Active Task Overview */}
+        {activeTask && (
+          <div className="contextSection">
+            <div className="contextSectionTitle">Current Task</div>
+            <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-primary)", marginBottom: "4px" }}>
+              {activeTask.title}
+            </div>
+            <div style={{ display: "flex", gap: "6px", marginBottom: "10px" }}>
+              <span className="statusBadge running">Running · {activeTask.elapsed}</span>
+            </div>
 
-  // Running tasks list for TaskSwitcher
-  const runningTasks: RunningTaskItem[] = [
-    {
-      id: "task_suppremo_growth",
-      title: "Suppremo Competitor Research",
-      progress: activeLiveTask?.progress || 78,
-      agentCount: 3,
-      status: "running",
-    },
-    {
-      id: "task_landing_page",
-      title: "Build Landing Page",
-      progress: 41,
-      agentCount: 1,
-      status: "running",
-    },
-    {
-      id: "task_market_analysis",
-      title: "Market Demand Study",
-      progress: 18,
-      agentCount: 2,
-      status: "running",
-    },
-  ];
+            <div className="metricKeyValue">
+              <span className="metricKey">Task ID</span>
+              <span className="metricVal">{activeTask.taskId}</span>
+            </div>
+            <div className="metricKeyValue">
+              <span className="metricKey">Lead Agent</span>
+              <span className="metricVal">Joice (CEO)</span>
+            </div>
+            <div className="metricKeyValue">
+              <span className="metricKey">Specialists</span>
+              <span className="metricVal">{activeTask.subagents.length} active</span>
+            </div>
+            <div className="metricKeyValue">
+              <span className="metricKey">Plan Steps</span>
+              <span className="metricVal">3 of 5 done</span>
+            </div>
+          </div>
+        )}
 
-  const voiceState = isSpeaking
-    ? "speaking"
-    : isProcessing
-      ? "thinking"
-      : isVoiceActive
-        ? "listening"
-        : "idle";
+        {/* Active Specialists */}
+        <div className="contextSection">
+          <div className="contextSectionTitle">Assigned Specialists</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <strong style={{ fontSize: "12px", color: "var(--text-primary)" }}>Pricing Analyst</strong>
+                <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Agency Agents</div>
+              </div>
+              <span className="statusBadge running" style={{ fontSize: "10px", padding: "1px 6px" }}>Active</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div>
+                <strong style={{ fontSize: "12px", color: "var(--text-primary)" }}>Sentiment Auditor</strong>
+                <div style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Agency Agents</div>
+              </div>
+              <span className="statusBadge running" style={{ fontSize: "10px", padding: "1px 6px" }}>Active</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Artifacts */}
+        <div className="contextSection">
+          <div className="contextSectionTitle">Artifacts & Files</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--text-primary)" }}>
+              <span>📄</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>suppremo_market_analysis.md</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "var(--text-primary)" }}>
+              <span>📊</span>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>competitor_commission_rates.csv</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
 
   return (
-    <div className="appShell">
-      {/* 1. Left Minimal Sidebar */}
-      <ChatSidebar
-        conversations={conversations}
-        activeConversationId={activeConvId}
-        onSelectConversation={(id) => setActiveConvId(id)}
-        onNewTask={() => {
-          setMessages([
-            {
-              id: `welcome_${Date.now()}`,
-              sender: "ceo",
-              text: "CEO OS is ready for your new directive. What objective shall we tackle?",
-              timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-            },
-          ]);
-          setActiveLiveTask(null);
-        }}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-      />
+    <AppShell currentRouteName="Joice" contextPanelContent={contextContent}>
+      <div className="joiceContainer">
+        {/* Joice Workspace Header */}
+        <div className="joiceHeader">
+          <div>
+            <h1 className="joiceGreeting">Good evening, Abdullah.</h1>
+            <p className="joiceSubhead">What should Joice and the specialist fleet work on today?</p>
+          </div>
 
-      {/* 2. Floating Parallel Task Switcher */}
-      <TaskSwitcher
-        tasks={runningTasks}
-        activeTaskId={activeLiveTask?.id}
-        onSelectTask={(id) => {
-          if (id === "task_suppremo_growth") {
-            setActiveLiveTask(INITIAL_TASK);
-          }
-        }}
-      />
+          <div style={{ display: "flex", gap: "8px" }}>
+            <Link
+              href="/live"
+              style={{
+                fontSize: "12px",
+                fontWeight: 500,
+                color: "var(--text-secondary)",
+                padding: "4px 10px",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-subtle)",
+                background: "var(--bg-surface-subtle)",
+              }}
+            >
+              View Live Tree →
+            </Link>
+          </div>
+        </div>
 
-      {/* 3. Center Main Chat Area */}
-      <main className="workspace" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Chat Header with Interactive Jarvis Voice Orb */}
-        <header className="chatHeaderRow">
-          <div className="headerMetaLeft">
-            <div className="headerCeoIdentity">
-              <div
-                className="voiceOrbHeaderTrigger"
-                onClick={() => setIsVoiceActive(!isVoiceActive)}
-                title="Click to toggle Jarvis live voice listener"
-              >
-                <VoiceOrb state={voiceState} size={42} />
-              </div>
-              <div>
-                <h2 className="headerTitle">
-                  {conversations.find((c) => c.id === activeConvId)?.title || "Suppremo Growth & Research"}
-                </h2>
-                <div className="headerStatusSub">
-                  <span className={`liveVoiceDot ${isVoiceActive ? "active" : ""}`} />
-                  <span>
-                    {isSpeaking
-                      ? "Jarvis Vocalizing Answer..."
-                      : isProcessing
-                        ? "Jarvis Reasoning..."
-                        : isVoiceActive
-                          ? "Jarvis Listening (Speak now)..."
-                          : "Jarvis Voice Standby · 3 Agents Active"}
-                  </span>
+        {/* Joice Conversation Feed */}
+        <div className="joiceFeed">
+          <div className="joiceFeedInner">
+            {messages.map((item) => (
+              <React.Fragment key={item.id}>
+                {item.sender === "user" ? (
+                  <div className="joiceMessageUser">
+                    <div>{item.text}</div>
+                    <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "4px", textAlign: "right" }}>
+                      {item.timestamp}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="joiceMessageAssistant">
+                    <div className="joiceAvatar">
+                      <JoiceIcon size={16} />
+                    </div>
+                    <div className="joiceMessageBody">
+                      <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-primary)", marginBottom: "4px" }}>
+                        Joice
+                      </div>
+                      <div className="joiceMessageText">{item.text}</div>
+
+                      {/* Inline Joice Execution Card */}
+                      {item.execution && (
+                        <div className="executionCard">
+                          <div className="executionHeader">
+                            <div className="executionStatusLeft">
+                              <span className="executionLiveBadge">
+                                ● {item.execution.status === "running" ? "Running" : "Completed"}
+                              </span>
+                              <span className="executionTitle">{item.execution.title}</span>
+                            </div>
+                            <div className="executionMetaRight">
+                              <span>Elapsed: {item.execution.elapsed}</span>
+                              <Link
+                                href="/tasks"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "2px",
+                                  color: "var(--accent-primary)",
+                                  fontWeight: 500,
+                                }}
+                              >
+                                Details <ChevronRightIcon size={12} />
+                              </Link>
+                            </div>
+                          </div>
+
+                          <div className="executionBody">
+                            {/* Plan Steps Checklist */}
+                            <div className="planStepList">
+                              {item.execution.planSteps.map((step) => (
+                                <div key={step.id} className={`planStepItem ${step.status}`}>
+                                  {step.status === "completed" && (
+                                    <span className="stepIconSuccess"><CheckIcon size={13} /></span>
+                                  )}
+                                  {step.status === "running" && (
+                                    <span className="stepIconRunning">●</span>
+                                  )}
+                                  {step.status === "pending" && (
+                                    <span className="stepIconPending">○</span>
+                                  )}
+                                  <span>{step.title}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Subagents & Tools Row */}
+                            <div className="agentDelegationRow">
+                              {item.execution.subagents.map((agent) => (
+                                <div key={agent.id} className="agentChip">
+                                  <span className="agentChipDot" />
+                                  <span>{agent.name}: {agent.action}</span>
+                                  {agent.tools.map((t) => (
+                                    <span key={t} className="toolExecutionChip">{t}</span>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+
+            {isProcessing && (
+              <div className="joiceMessageAssistant">
+                <div className="joiceAvatar">
+                  <JoiceIcon size={16} />
                 </div>
+                <div className="joiceMessageBody" style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+                  Joice is formulating execution plan...
+                </div>
+              </div>
+            )}
+            <div ref={feedEndRef} />
+          </div>
+        </div>
+
+        {/* High-Polish Joice Composer */}
+        <div className="joiceComposerWrapper">
+          <div className="joiceComposerBox">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              value={inputPrompt}
+              onChange={(e) => setInputPrompt(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Joice to do anything, plan projects, run workflows (Enter to send)..."
+              className="joiceTextarea"
+              disabled={isProcessing}
+            />
+
+            <div className="composerActionBar">
+              <div className="composerLeftGroup">
+                <button type="button" className="composerToolBtn" title="Attach file or screenshot">
+                  <PaperclipIcon size={13} />
+                  <span>Attach</span>
+                </button>
+
+                <Link href="/jarvis" className="composerToolBtn" title="Speak directive via Jarvis Voice">
+                  <MicIcon size={13} />
+                  <span>Voice</span>
+                </Link>
+
+                <button
+                  type="button"
+                  className="composerToolBtn"
+                  onClick={() => setInputPrompt("/research ")}
+                  title="Run deep research workflow"
+                >
+                  ⚡ /research
+                </button>
+              </div>
+
+              <div className="composerRightGroup">
+                <select
+                  value={executionMode}
+                  onChange={(e) => setExecutionMode(e.target.value)}
+                  className="modeSelectPill"
+                  title="Execution Reasoning Mode"
+                >
+                  <option value="Auto">Auto (Recommended)</option>
+                  <option value="Think">Think (Deep Reasoning)</option>
+                  <option value="Execute">Execute (Fast / Direct)</option>
+                  <option value="Research">Research (Multi-Agent Swarm)</option>
+                </select>
+
+                <button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={!inputPrompt.trim() || isProcessing}
+                  className="composerSendButton"
+                  title="Send Directive"
+                >
+                  <ArrowUpIcon size={14} />
+                </button>
               </div>
             </div>
           </div>
-
-          <div className="headerControlsRight">
-            <button
-              type="button"
-              className={`headerControlBtn ${isVoiceActive ? "voiceBtnActive" : ""}`}
-              onClick={() => setIsVoiceActive(!isVoiceActive)}
-              title={isVoiceActive ? "Mute Microphone" : "Activate Jarvis Voice"}
-            >
-              {isVoiceActive ? "🎙️ Mic ON" : "🎙️ Voice Mode"}
-            </button>
-
-            <button
-              type="button"
-              className="headerControlBtn"
-              onClick={() => setIsMuted(!isMuted)}
-              title={isMuted ? "Unmute Spoken Audio" : "Mute Spoken Audio"}
-            >
-              {isMuted ? "🔇 Muted" : "🔊 Audio"}
-            </button>
-
-            <button
-              type="button"
-              className="headerControlBtn"
-              onClick={() => {
-                setContextData({
-                  mode: "default",
-                  taskOverview: {
-                    taskId: "task_suppremo_growth",
-                    title: "Suppremo Growth Research",
-                    status: "Running",
-                    progress: 78,
-                    agentCount: 3,
-                    toolCount: 6,
-                    actionsCount: 27,
-                    elapsed: "08:42",
-                    model: "Gemini 3.7 Flash",
-                    reasoning: "High",
-                    cost: "₹2.38",
-                    tokens: "28.4k",
-                  },
-                });
-                setIsContextOpen(!isContextOpen);
-              }}
-              title="Toggle Mission Control Details"
-            >
-              📊 System State
-            </button>
-          </div>
-        </header>
-
-        {/* Proactive CEO Recommendation Banner */}
-        <div className="proactiveInsightBanner">
-          <div className="insightIcon">💡</div>
-          <div className="insightText">
-            <strong>CEO Proactive Observation:</strong> Found 3 pricing vulnerabilities in Zomato & Swiggy commission structures. Would you like a differentiated pitch deck drafted?
-          </div>
-          <button
-            type="button"
-            className="btnInsightAction"
-            onClick={() => handleSendMessage("Yes, draft the differentiated pitch deck.")}
-          >
-            Draft Pitch Deck
-          </button>
         </div>
-
-        {/* Conversation Stream */}
-        <div className="chatMessageFeed">
-          {messages.map((msg) => (
-            <ChatBubble
-              key={msg.id}
-              message={msg}
-              onSpeak={(spokenText) => speakText(spokenText)}
-            />
-          ))}
-
-          {/* Inline Live Task Card directly inside chat */}
-          {activeLiveTask && (
-            <LiveTaskCard
-              task={activeLiveTask}
-              onSelectAgent={handleSelectAgent}
-              onSelectBrowser={handleSelectBrowser}
-              onSelectComputer={handleSelectComputer}
-              onSelectArtifact={handleSelectArtifact}
-              onApproveAction={handleApproveAction}
-              onRejectAction={handleRejectAction}
-              onAddInstruction={handleAddInstruction}
-            />
-          )}
-
-          {isProcessing && <ThinkingBubble text="Jarvis and CEO OS dispatching directives..." />}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Fixed Chat Composer */}
-        <ChatComposer
-          onSendMessage={handleSendMessage}
-          isProcessing={isProcessing}
-          isVoiceActive={isVoiceActive}
-          onToggleVoice={() => setIsVoiceActive(!isVoiceActive)}
-          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-        />
-      </main>
-
-      {/* 4. Contextual Right Sidebar Panel */}
-      <ContextPanel
-        isOpen={isContextOpen}
-        onClose={() => setIsContextOpen(false)}
-        data={contextData}
-        onInterruptComputer={() => {
-          alert("macOS CUA control paused. User has interactive control.");
-        }}
-        onPauseTask={() => {
-          if (activeLiveTask) {
-            setActiveLiveTask({ ...activeLiveTask, status: "blocked" });
-          }
-        }}
-      />
-
-      {/* 5. Global Command Palette */}
-      <CommandPalette
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
-        onSelectAction={(action) => {
-          if (action === "new_task") {
-            setActiveLiveTask(null);
-            setMessages([
-              {
-                id: `welcome_${Date.now()}`,
-                sender: "ceo",
-                text: "CEO OS is ready. State your objective.",
-                timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-              },
-            ]);
-          } else if (action === "talk_jarvis") {
-            setIsVoiceActive(true);
-          } else if (action === "open_computer") {
-            handleSelectComputer();
-          } else if (action === "open_browser") {
-            handleSelectBrowser();
-          }
-        }}
-      />
-    </div>
+      </div>
+    </AppShell>
   );
 }

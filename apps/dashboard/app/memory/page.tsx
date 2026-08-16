@@ -1,335 +1,245 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLiveState } from "../../components/dashboard-shell";
-import { formatDate, requestJson } from "../../lib/api";
-import type { Memory } from "../../lib/contracts";
+import React, { useState } from "react";
+import { AppShell } from "../../components/app-shell";
+import {
+  MemoryIcon,
+  SearchIcon,
+  CheckIcon,
+} from "../../components/icons";
+
+interface MemoryItem {
+  id: string;
+  category: "Profile" | "Preferences" | "Projects" | "People" | "Companies" | "Decisions" | "Knowledge";
+  title: string;
+  content: string;
+  source: string;
+  updatedAt: string;
+  isPinned?: boolean;
+}
+
+const DEMO_MEMORIES: MemoryItem[] = [
+  {
+    id: "mem_1",
+    category: "Projects",
+    title: "Suppremo Operating Goals & Margin Targets",
+    content: "Targeting 12% operating margin in Q3. Prioritize flat-rate merchant subscription tier over per-order commission surge.",
+    source: "Executive Strategy Note",
+    updatedAt: "Yesterday",
+    isPinned: true,
+  },
+  {
+    id: "mem_2",
+    category: "Preferences",
+    title: "Code Quality & Architecture Guardrails",
+    content: "Strict Mypy type-checking, minimal diffs, no giant refactors during bug fixes, and all contracts defined prior to implementation.",
+    source: "AGENTS.md",
+    updatedAt: "3 days ago",
+    isPinned: true,
+  },
+  {
+    id: "mem_3",
+    category: "Companies",
+    title: "Swiggy & Zomato Competitor Profile",
+    content: "Merchant onboarding baseline commission is 18–24% plus delivery fee surcharges. Significant user dissatisfaction with platform fees.",
+    source: "Pricing Analyst Report",
+    updatedAt: "Today",
+    isPinned: false,
+  },
+  {
+    id: "mem_4",
+    category: "Profile",
+    title: "CEO User Context & Role",
+    content: "Abdullah Ansari — Primary Operator of CEO-OS. Timezone: IST (UTC+5:30). High-level autonomous delegation preferred.",
+    source: "System Init",
+    updatedAt: "1 week ago",
+    isPinned: false,
+  },
+];
 
 export default function MemoryPage() {
-  const { revision } = useLiveState();
-  const [memories, setMemories] = useState<Memory[]>([]);
-  const [query, setQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
-  const [searching, setSearching] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("All");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [memories, setMemories] = useState<MemoryItem[]>(DEMO_MEMORIES);
+  const [selectedMemory, setSelectedMemory] = useState<MemoryItem | null>(DEMO_MEMORIES[0]);
 
-  // New memory modal
-  const [showCreate, setShowCreate] = useState(false);
-  const [newContent, setNewContent] = useState("");
-  const [newType, setNewType] = useState("fact");
-  const [newKey, setNewKey] = useState("");
-  const [creating, setCreating] = useState(false);
+  const categories = ["All", "Profile", "Preferences", "Projects", "People", "Companies", "Decisions", "Knowledge"];
 
-  const loadMemories = useCallback(async () => {
-    try {
-      const data = await requestJson<Memory[]>("/api/v1/memory?limit=100");
-      setMemories(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "API unavailable");
-    }
-  }, []);
+  const filteredMemories = memories.filter((m) => {
+    const matchesCategory = selectedCategory === "All" || m.category === selectedCategory;
+    const matchesSearch =
+      m.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      m.content.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
-  useEffect(() => {
-    void loadMemories();
-  }, [loadMemories, revision]);
+  const handleForget = (id: string) => {
+    setMemories((prev) => prev.filter((m) => m.id !== id));
+    if (selectedMemory?.id === id) setSelectedMemory(null);
+  };
 
-  async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) {
-      await loadMemories();
-      return;
-    }
-    setSearching(true);
-    setError(null);
-    try {
-      const results = await requestJson<Memory[]>("/api/v1/memory/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: query.trim(), limit: 50 }),
-      });
-      setMemories(results);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Search failed");
-    } finally {
-      setSearching(false);
-    }
-  }
+  const handleTogglePin = (id: string) => {
+    setMemories((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, isPinned: !m.isPinned } : m))
+    );
+  };
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newContent.trim() || creating) return;
-    setCreating(true);
-    setError(null);
-    try {
-      await requestJson<Memory>("/api/v1/memory", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: newContent.trim(),
-          memory_type: newType,
-          subject_key: newKey.trim() || null,
-          importance: 0.8,
-        }),
-      });
-      setNewContent("");
-      setNewKey("");
-      setShowCreate(false);
-      await loadMemories();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record memory");
-    } finally {
-      setCreating(false);
-    }
-  }
+  const contextContent = selectedMemory ? (
+    <>
+      <div className="contextPanelHeader">
+        <span>Memory Record</span>
+        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{selectedMemory.category}</span>
+      </div>
 
-  const filteredMemories = useMemo(() => {
-    return memories.filter((m) => {
-      if (typeFilter === "all") return true;
-      return m.memory_type.toLowerCase() === typeFilter.toLowerCase();
-    });
-  }, [memories, typeFilter]);
+      <div className="contextPanelBody">
+        <div className="contextSection">
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+            <strong style={{ fontSize: "14px", color: "var(--text-primary)" }}>{selectedMemory.title}</strong>
+            {selectedMemory.isPinned && (
+              <span style={{ fontSize: "11px", color: "var(--accent-primary)", fontWeight: 600 }}>📌 Pinned</span>
+            )}
+          </div>
+          <div style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: "1.6", marginBottom: "12px" }}>
+            {selectedMemory.content}
+          </div>
+
+          <div className="metricKeyValue">
+            <span className="metricKey">Provenance</span>
+            <span className="metricVal">{selectedMemory.source}</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Last Updated</span>
+            <span className="metricVal">{selectedMemory.updatedAt}</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            type="button"
+            style={{
+              flex: 1,
+              padding: "7px",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-strong)",
+              background: "var(--bg-surface)",
+              fontSize: "12px",
+              fontWeight: 500,
+              color: "var(--text-primary)",
+            }}
+            onClick={() => handleTogglePin(selectedMemory.id)}
+          >
+            {selectedMemory.isPinned ? "Unpin" : "Pin Memory"}
+          </button>
+          <button
+            type="button"
+            style={{
+              padding: "7px 12px",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--status-danger-border)",
+              background: "var(--status-danger-bg)",
+              color: "var(--status-danger-text)",
+              fontSize: "12px",
+              fontWeight: 600,
+            }}
+            onClick={() => handleForget(selectedMemory.id)}
+          >
+            Forget
+          </button>
+        </div>
+      </div>
+    </>
+  ) : null;
 
   return (
-    <>
-      <section className="pageIntro">
-        <p className="eyebrow">PERSISTENT KNOWLEDGE VAULT</p>
-        <h1>Long-Term Memory</h1>
-        <p>
-          Semantic and episodic memory store indexed with 384-dimensional vector embeddings,
-          provenance tracking, and immutable correction chains.
-        </p>
-      </section>
-
-      {/* Stats */}
-      <div className="statGrid">
-        <div className="stat highlight">
-          <span>INDEXED MEMORIES</span>
-          <strong>{memories.length}</strong>
-          <small>Vectorized in PostgreSQL / HNSW</small>
-        </div>
-        <div className="stat">
-          <span>FACTS & RULES</span>
-          <strong>
-            {memories.filter((m) => ["fact", "rule", "constraint"].includes(m.memory_type)).length}
-          </strong>
-        </div>
-        <div className="stat">
-          <span>EPISODIC HISTORY</span>
-          <strong>
-            {memories.filter((m) => m.memory_type === "episodic").length}
-          </strong>
-        </div>
-        <div className="stat">
-          <span>HIGH IMPORTANCE</span>
-          <strong>
-            {memories.filter((m) => m.importance >= 0.7).length}
-          </strong>
-        </div>
-      </div>
-
-      {error && <p className="notice error">Memory Error: {error}</p>}
-
-      {/* Search & Actions */}
-      <div className="searchBar">
-        <form onSubmit={handleSearch} style={{ display: "flex", flex: 1, gap: "10px" }}>
-          <input
-            type="text"
-            placeholder="Semantic search across memories (e.g. 'What are the company goals?')..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <button type="submit" disabled={searching}>
-            {searching ? "SEARCHING..." : "SEMANTIC SEARCH"}
-          </button>
-        </form>
-        <button type="button" className="secondary" onClick={() => setShowCreate(true)}>
-          + RECORD MEMORY
-        </button>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="tabNav">
-        <button
-          type="button"
-          className={`tabButton ${typeFilter === "all" ? "active" : ""}`}
-          onClick={() => setTypeFilter("all")}
-        >
-          All Memories <span>({memories.length})</span>
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${typeFilter === "fact" ? "active" : ""}`}
-          onClick={() => setTypeFilter("fact")}
-        >
-          Facts
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${typeFilter === "rule" ? "active" : ""}`}
-          onClick={() => setTypeFilter("rule")}
-        >
-          Rules
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${typeFilter === "episodic" ? "active" : ""}`}
-          onClick={() => setTypeFilter("episodic")}
-        >
-          Episodic
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${typeFilter === "preference" ? "active" : ""}`}
-          onClick={() => setTypeFilter("preference")}
-        >
-          Preferences
-        </button>
-      </div>
-
-      {/* Memories Grid */}
-      <div className="cards memoryGrid">
-        {filteredMemories.length ? (
-          filteredMemories.map((memory) => (
-            <article className="card memoryCard" key={memory.id}>
-              <div>
-                <div className="cardHead">
-                  <span className="riskBadge r0">{memory.memory_type.toUpperCase()}</span>
-                  <span>{Math.round(memory.confidence * 100)}% confidence</span>
-                </div>
-
-                <p>{memory.content}</p>
-              </div>
-
-              <div>
-                <div className="tagRow">
-                  {memory.subject_key && <span>Key: {memory.subject_key}</span>}
-                  <span>Importance: {Math.round(memory.importance * 100)}%</span>
-                  {memory.score !== undefined && memory.score !== null && (
-                    <span className="domainTag">
-                      Similarity: {Math.round(memory.score * 100)}%
-                    </span>
-                  )}
-                </div>
-
-                <div className="source">
-                  <span>Observed: {formatDate(memory.observed_at)}</span>
-                  {memory.provenance.length > 0 && (
-                    <div style={{ marginTop: "4px" }}>
-                      Source: {memory.provenance.map((p) => p.source_type).join(", ")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </article>
-          ))
-        ) : (
-          <div className="emptyState" style={{ gridColumn: "1 / -1" }}>
-            <strong>No memories found</strong>
-            <p>Try a different search query or record a new memory.</p>
+    <AppShell currentRouteName="Memory" contextPanelContent={contextContent}>
+      <div className="pageContainer">
+        <div className="pageHeader">
+          <div>
+            <h1 className="pageTitle">Memory & State</h1>
+            <p className="pageSubtitle">
+              Persistent context, business rules, and preferences referenced by Joice.
+            </p>
           </div>
-        )}
-      </div>
 
-      {/* Create Memory Modal */}
-      {showCreate && (
-        <div className="modalBackdrop" onClick={() => setShowCreate(false)}>
-          <div className="modalWindow" onClick={(e) => e.stopPropagation()}>
-            <div className="modalHead">
-              <h2>Record Knowledge Memory</h2>
-              <button
-                type="button"
-                className="closeBtn"
-                onClick={() => setShowCreate(false)}
-              >
-                ✕
-              </button>
-            </div>
+          <div style={{ position: "relative", width: "240px" }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search memory..."
+              style={{
+                width: "100%",
+                padding: "6px 10px 6px 28px",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-strong)",
+                fontSize: "13px",
+                outline: "none",
+              }}
+            />
+            <span style={{ position: "absolute", left: "9px", top: "7px", color: "var(--text-muted)" }}>
+              <SearchIcon size={13} />
+            </span>
+          </div>
+        </div>
 
-            <form onSubmit={handleCreate}>
-              <div style={{ marginBottom: "14px" }}>
-                <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "6px" }}>
-                  Memory Content
-                </label>
-                <textarea
-                  style={{
-                    width: "100%",
-                    minHeight: "100px",
-                    padding: "12px",
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    color: "var(--ink)",
-                    borderRadius: "var(--radius-sm)",
-                  }}
-                  placeholder="State the fact, rule, or preference..."
-                  value={newContent}
-                  onChange={(e) => setNewContent(e.target.value)}
-                  required
-                />
-              </div>
+        {/* Category Tabs */}
+        <div className="filterTabBar">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              className={`filterTab ${selectedCategory === cat ? "active" : ""}`}
+              onClick={() => setSelectedCategory(cat)}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
 
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "12px",
-                  marginBottom: "20px",
-                }}
-              >
-                <div>
-                  <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "6px" }}>
-                    Memory Type
-                  </label>
-                  <select
-                    className="filterSelect"
-                    style={{ width: "100%" }}
-                    value={newType}
-                    onChange={(e) => setNewType(e.target.value)}
-                  >
-                    <option value="fact">Fact</option>
-                    <option value="rule">Rule</option>
-                    <option value="preference">Preference</option>
-                    <option value="constraint">Constraint</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: "11px", color: "var(--muted)", display: "block", marginBottom: "6px" }}>
-                    Subject Key (optional)
-                  </label>
-                  <input
-                    type="text"
+        {/* Memory Items List */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {filteredMemories.map((mem) => (
+            <div
+              key={mem.id}
+              onClick={() => setSelectedMemory(mem)}
+              style={{
+                background: selectedMemory?.id === mem.id ? "var(--bg-surface-subtle)" : "var(--bg-surface)",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "var(--radius-lg)",
+                padding: "12px 16px",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  {mem.isPinned && <span style={{ fontSize: "12px" }}>📌</span>}
+                  <strong style={{ fontSize: "13px", color: "var(--text-primary)" }}>{mem.title}</strong>
+                  <span
                     style={{
-                      width: "100%",
-                      minHeight: "44px",
-                      padding: "0 12px",
-                      background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      color: "var(--ink)",
-                      borderRadius: "var(--radius-sm)",
+                      fontSize: "11px",
+                      padding: "1px 6px",
+                      borderRadius: "var(--radius-full)",
+                      background: "var(--bg-surface-tertiary)",
+                      color: "var(--text-secondary)",
                     }}
-                    placeholder="e.g. cloud_budget"
-                    value={newKey}
-                    onChange={(e) => setNewKey(e.target.value)}
-                  />
+                  >
+                    {mem.category}
+                  </span>
                 </div>
+                <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>{mem.updatedAt}</span>
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setShowCreate(false)}
-                >
-                  CANCEL
-                </button>
-                <button type="submit" disabled={creating || !newContent.trim()}>
-                  {creating ? "SAVING..." : "COMMIT TO MEMORY"}
-                </button>
+              <div style={{ fontSize: "13px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
+                {mem.content}
               </div>
-            </form>
-          </div>
+            </div>
+          ))}
         </div>
-      )}
-    </>
+      </div>
+    </AppShell>
   );
 }

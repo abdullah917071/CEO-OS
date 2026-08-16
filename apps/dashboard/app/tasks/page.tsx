@@ -1,179 +1,245 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLiveState } from "../../components/dashboard-shell";
-import { TaskCard } from "../../components/task-card";
-import { requestJson } from "../../lib/api";
-import type { Task } from "../../lib/contracts";
+import React, { useState } from "react";
+import { AppShell } from "../../components/app-shell";
+import {
+  TasksIcon,
+  CheckIcon,
+  ChevronRightIcon,
+  XIcon,
+} from "../../components/icons";
 
-type FilterStatus = "all" | "active" | "success" | "failed" | "cancelled" | "waiting";
+interface TaskRecord {
+  id: string;
+  title: string;
+  agent: string;
+  status: "running" | "completed" | "failed" | "queued";
+  started: string;
+  duration: string;
+  tools: string[];
+  outputSummary?: string;
+  timeline: { time: string; event: string }[];
+}
+
+const DEMO_TASKS: TaskRecord[] = [
+  {
+    id: "task_suppremo_growth",
+    title: "Suppremo Competitor & Pricing Analysis",
+    agent: "Joice → Pricing Analyst",
+    status: "running",
+    started: "18:02:10",
+    duration: "04:18",
+    tools: ["browser.navigate", "search.google"],
+    outputSummary: "Extracted merchant commission tiers (18-24%) from Swiggy & Zomato partner portals.",
+    timeline: [
+      { time: "18:02:10", event: "Task created by Joice" },
+      { time: "18:02:12", event: "Assembled specialist team" },
+      { time: "18:03:45", event: "Navigated to merchant partner portals" },
+      { time: "18:05:20", event: "Extracted commission breakdown" },
+    ],
+  },
+  {
+    id: "task_landing_page",
+    title: "Build Responsive Landing Page",
+    agent: "Joice → Frontend Engineer",
+    status: "completed",
+    started: "17:40:00",
+    duration: "02:15",
+    tools: ["read_file", "write_to_file", "build_runner"],
+    outputSummary: "React + Tailwind hero section generated and validated.",
+    timeline: [
+      { time: "17:40:00", event: "Task created by Joice" },
+      { time: "17:41:10", event: "Generated component structure" },
+      { time: "17:42:15", event: "Build check passed with 0 errors" },
+    ],
+  },
+  {
+    id: "task_ads_spend",
+    title: "Analyze Google Ads Spend Anomalies",
+    agent: "Joice → Marketing Specialist",
+    status: "completed",
+    started: "Yesterday",
+    duration: "06:30",
+    tools: ["integrations.google_ads", "analytics.query"],
+    outputSummary: "Cost per acquisition anomaly detected on campaign #302.",
+    timeline: [
+      { time: "Yesterday", event: "Analyzed 30-day conversion data" },
+      { time: "Yesterday", event: "Generated executive spend summary" },
+    ],
+  },
+];
 
 export default function TasksPage() {
-  const { revision } = useLiveState();
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>("all");
-  const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<"all" | "active" | "completed" | "failed">("all");
+  const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(DEMO_TASKS[0]);
 
-  const refresh = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      const data = await requestJson<Task[]>("/api/v1/tasks?limit=100");
-      setTasks(data);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "API unavailable");
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
+  const filteredTasks = DEMO_TASKS.filter((t) => {
+    if (filter === "active") return t.status === "running" || t.status === "queued";
+    if (filter === "completed") return t.status === "completed";
+    if (filter === "failed") return t.status === "failed";
+    return true;
+  });
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh, revision]);
-
-  const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        t.objective.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (t.result?.message && t.result.message.toLowerCase().includes(searchQuery.toLowerCase()));
-
-      if (!matchesSearch) return false;
-
-      if (statusFilter === "all") return true;
-      if (statusFilter === "active") {
-        return ["planning", "running", "retrying"].includes(t.status);
-      }
-      if (statusFilter === "success") {
-        return ["success", "partial_success"].includes(t.status);
-      }
-      if (statusFilter === "failed") {
-        return t.status === "failed";
-      }
-      if (statusFilter === "cancelled") {
-        return t.status === "cancelled";
-      }
-      if (statusFilter === "waiting") {
-        return ["waiting", "needs_approval", "paused"].includes(t.status);
-      }
-      return true;
-    });
-  }, [tasks, searchQuery, statusFilter]);
-
-  const activeCount = tasks.filter((t) =>
-    ["planning", "running", "retrying"].includes(t.status)
-  ).length;
-  const successCount = tasks.filter((t) =>
-    ["success", "partial_success"].includes(t.status)
-  ).length;
-  const failedCount = tasks.filter((t) => t.status === "failed").length;
-
-  return (
+  const contextContent = selectedTask ? (
     <>
-      <section className="pageIntro">
-        <p className="eyebrow">DURABLE ENGINE & ORCHESTRATION</p>
-        <h1>Tasks Workbench</h1>
-        <p>
-          Inspect checkpointed execution plans, step transitions, risk classifications, and verified
-          evidence logs.
-        </p>
-      </section>
-
-      {/* Task Telemetry Metrics */}
-      <div className="statGrid">
-        <div className="stat">
-          <span>TOTAL LOGGED</span>
-          <strong>{tasks.length}</strong>
-        </div>
-        <div className="stat highlight">
-          <span>RUNNING / ACTIVE</span>
-          <strong>{activeCount}</strong>
-        </div>
-        <div className="stat">
-          <span>SUCCESSFUL</span>
-          <strong>{successCount}</strong>
-        </div>
-        <div className="stat">
-          <span>FAILED / CANCELLED</span>
-          <strong>{failedCount}</strong>
-        </div>
+      <div className="contextPanelHeader">
+        <span>Task Inspector</span>
+        <span style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
+          {selectedTask.id}
+        </span>
       </div>
 
-      {error && <p className="notice error">CEO API Error: {error}</p>}
+      <div className="contextPanelBody">
+        <div className="contextSection">
+          <div className="contextSectionTitle">Overview</div>
+          <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--text-primary)", marginBottom: "4px" }}>
+            {selectedTask.title}
+          </div>
+          <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+            <span className={`statusBadge ${selectedTask.status}`}>
+              {selectedTask.status}
+            </span>
+          </div>
 
-      {/* Filter and Search Bar */}
-      <div className="searchBar">
-        <input
-          type="text"
-          placeholder="Filter tasks by objective, capability, or ID..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <button
-          type="button"
-          className="secondary"
-          disabled={refreshing}
-          onClick={() => void refresh()}
-        >
-          {refreshing ? "REFRESHING..." : "REFRESH"}
-        </button>
-      </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Created By</span>
+            <span className="metricVal">Joice (CEO)</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Assigned Agent</span>
+            <span className="metricVal">{selectedTask.agent}</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Started</span>
+            <span className="metricVal">{selectedTask.started}</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Duration</span>
+            <span className="metricVal">{selectedTask.duration}</span>
+          </div>
+        </div>
 
-      {/* Segmented Filter Tabs */}
-      <div className="tabNav">
-        <button
-          type="button"
-          className={`tabButton ${statusFilter === "all" ? "active" : ""}`}
-          onClick={() => setStatusFilter("all")}
-        >
-          All Tasks <span>({tasks.length})</span>
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${statusFilter === "active" ? "active" : ""}`}
-          onClick={() => setStatusFilter("active")}
-        >
-          Active / Running <span>({activeCount})</span>
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${statusFilter === "success" ? "active" : ""}`}
-          onClick={() => setStatusFilter("success")}
-        >
-          Success <span>({successCount})</span>
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${statusFilter === "failed" ? "active" : ""}`}
-          onClick={() => setStatusFilter("failed")}
-        >
-          Failed <span>({failedCount})</span>
-        </button>
-        <button
-          type="button"
-          className={`tabButton ${statusFilter === "cancelled" ? "active" : ""}`}
-          onClick={() => setStatusFilter("cancelled")}
-        >
-          Cancelled
-        </button>
-      </div>
+        {/* Timeline */}
+        <div className="contextSection">
+          <div className="contextSectionTitle">Execution Timeline</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {selectedTask.timeline.map((t, idx) => (
+              <div key={idx} style={{ display: "flex", gap: "8px", fontSize: "12px" }}>
+                <span style={{ fontFamily: "var(--font-mono)", color: "var(--text-muted)", width: "55px", flexShrink: 0 }}>
+                  {t.time}
+                </span>
+                <span style={{ color: "var(--text-primary)" }}>{t.event}</span>
+              </div>
+            ))}
+          </div>
+        </div>
 
-      {/* Tasks List */}
-      <div className="cards">
-        {filteredTasks.length ? (
-          filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} onChanged={() => void refresh()} />
-          ))
-        ) : (
-          <div className="emptyState">
-            <strong>No tasks match filter criteria</strong>
-            <p>Try clearing your search query or changing the status filter.</p>
+        {/* Output */}
+        {selectedTask.outputSummary && (
+          <div className="contextSection">
+            <div className="contextSectionTitle">Output & Results</div>
+            <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.5" }}>
+              {selectedTask.outputSummary}
+            </div>
           </div>
         )}
       </div>
     </>
+  ) : null;
+
+  return (
+    <AppShell currentRouteName="Tasks" contextPanelContent={contextContent}>
+      <div className="pageContainer">
+        <div className="pageHeader">
+          <div>
+            <h1 className="pageTitle">Tasks</h1>
+            <p className="pageSubtitle">
+              Authoritative task execution ledger and detailed step timelines.
+            </p>
+          </div>
+
+          <div className="filterTabBar">
+            <button
+              type="button"
+              className={`filterTab ${filter === "all" ? "active" : ""}`}
+              onClick={() => setFilter("all")}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`filterTab ${filter === "active" ? "active" : ""}`}
+              onClick={() => setFilter("active")}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              className={`filterTab ${filter === "completed" ? "active" : ""}`}
+              onClick={() => setFilter("completed")}
+            >
+              Completed
+            </button>
+            <button
+              type="button"
+              className={`filterTab ${filter === "failed" ? "active" : ""}`}
+              onClick={() => setFilter("failed")}
+            >
+              Failed
+            </button>
+          </div>
+        </div>
+
+        {/* Clean Tasks Table */}
+        <table className="cleanTable">
+          <thead>
+            <tr>
+              <th>Task</th>
+              <th>Owning Agent</th>
+              <th>Status</th>
+              <th>Started</th>
+              <th>Duration</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredTasks.map((t) => (
+              <tr
+                key={t.id}
+                onClick={() => setSelectedTask(t)}
+                style={{
+                  cursor: "pointer",
+                  background: selectedTask?.id === t.id ? "var(--bg-surface-subtle)" : undefined,
+                }}
+              >
+                <td>
+                  <strong style={{ fontSize: "13px", color: "var(--text-primary)" }}>{t.title}</strong>
+                  <div style={{ fontSize: "11px", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
+                    {t.id}
+                  </div>
+                </td>
+                <td style={{ fontSize: "13px", color: "var(--text-secondary)" }}>{t.agent}</td>
+                <td>
+                  <span className={`statusBadge ${t.status}`}>
+                    {t.status}
+                  </span>
+                </td>
+                <td style={{ fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
+                  {t.started}
+                </td>
+                <td style={{ fontSize: "12px", fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>
+                  {t.duration}
+                </td>
+                <td>
+                  <span style={{ fontSize: "12px", color: "var(--accent-primary)", fontWeight: 500 }}>
+                    Inspect →
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </AppShell>
   );
 }
