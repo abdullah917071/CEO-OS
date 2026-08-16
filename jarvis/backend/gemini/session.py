@@ -108,6 +108,14 @@ class GeminiLiveSession:
 
         self._mic_queue.put_nowait(pcm16_bytes)
 
+    async def send_text_directive(self, text: str) -> None:
+        """Send a direct text directive to the active Gemini Live session."""
+        if not self._running or not self.socket.is_connected:
+            return
+        self.last_activity_at = time.time()
+        self._emit_event("USER_TRANSCRIPT", {"text": text})
+        await self.socket.send_text_message(text)
+
     async def stop(self, reason: str = "user_ended") -> None:
         """Gracefully disconnect Gemini Live and flush audio."""
         if not self._running:
@@ -185,9 +193,21 @@ class GeminiLiveSession:
                             self.total_gemini_speech_sec += len(pcm_bytes) / (24000 * 2)
                             self.playback_manager.enqueue_chunk(pcm_bytes)
                             self.audio_processor.notify_speaker_output(pcm_bytes)
-                            self._emit_event("AI_SPEAKING", {"bytes_count": len(pcm_bytes)})
+                            self._emit_event(
+                                "AI_SPEAKING",
+                                {
+                                    "bytes_count": len(pcm_bytes),
+                                    "b64_pcm": raw_b64,
+                                    "sample_rate": 24000,
+                                },
+                            )
 
-                        # 2. Function Call
+                        # 2. Text / Transcript
+                        text_part = part.get("text")
+                        if text_part:
+                            self._emit_event("AI_TRANSCRIPT", {"text": text_part})
+
+                        # 3. Function Call
                         fn_call = part.get("functionCall")
                         if fn_call:
                             asyncio.create_task(self._handle_function_call(fn_call))

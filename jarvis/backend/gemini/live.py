@@ -1,4 +1,4 @@
-"""Gemini Live Bidirectional WebSocket client for Vertex AI."""
+"""Gemini Live Bidirectional WebSocket client for Vertex AI & Google AI Studio."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiLiveSocket:
-    """Manages low-level WebSocket connection to Vertex AI / Gemini Live service."""
+    """Manages low-level WebSocket connection to Vertex AI / Google AI Studio Gemini Live service."""
 
     def __init__(
         self,
@@ -75,7 +75,7 @@ class GeminiLiveSocket:
             )
             self._is_connected = True
 
-            # Send Setup Handshake
+            # Send Setup Handshake with AUDIO modality and speech config
             setup_dict: dict[str, Any] = {
                 "model": model_resource,
                 "generationConfig": {
@@ -126,6 +126,28 @@ class GeminiLiveSocket:
             await self._ws.send(json.dumps(payload))
         except Exception as exc:
             logger.warning("Error sending audio chunk to Gemini: %s", exc)
+
+    async def send_text_message(self, text: str) -> None:
+        """Send text user message directly to Gemini Live session."""
+        if not self._ws or not self._is_connected:
+            return
+
+        payload = {
+            "clientContent": {
+                "turns": [
+                    {
+                        "role": "user",
+                        "parts": [{"text": text}],
+                    }
+                ],
+                "turnComplete": True,
+            }
+        }
+        try:
+            await self._ws.send(json.dumps(payload))
+            logger.info("Sent text message to Gemini Live: %s", text[:50])
+        except Exception as exc:
+            logger.error("Failed sending text message to Gemini: %s", exc)
 
     async def send_tool_response(
         self, function_name: str, response: dict[str, Any], call_id: str | None = None
