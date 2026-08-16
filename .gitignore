@@ -27,4 +27,3 @@ data/
 secrets/
 *.pem
 *.key
-uv.lock
