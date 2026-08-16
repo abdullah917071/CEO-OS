@@ -8,10 +8,13 @@ export function getApiUrl(): string {
     return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
   }
   if (typeof window !== "undefined") {
-    // If frontend is accessed remotely or via domain on port 3000, connect to port 8000 by default
     const hostname = window.location.hostname;
     const protocol = window.location.protocol;
-    if (window.location.port === "3000") {
+    // When running on local dev frontend port (3000, 3001, 3005, 5173, etc.), route API calls to FastAPI port 8000
+    if (
+      window.location.port !== "8000" &&
+      (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".local"))
+    ) {
       return `${protocol}//${hostname}:8000`;
     }
     return window.location.origin;
@@ -28,7 +31,10 @@ export function getWsUrl(path: string = ""): string {
   if (typeof window !== "undefined") {
     const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const hostname = window.location.hostname;
-    if (window.location.port === "3000") {
+    if (
+      window.location.port !== "8000" &&
+      (hostname === "localhost" || hostname === "127.0.0.1" || hostname.endsWith(".local"))
+    ) {
       return `${wsProto}//${hostname}:8000${cleanPath}`;
     }
     return `${wsProto}//${window.location.host}${cleanPath}`;
@@ -46,6 +52,10 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
   const response = await fetch(`${base}${cleanPath}`, {
     cache: "no-store",
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
   });
 
   if (!response.ok) {
