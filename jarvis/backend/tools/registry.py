@@ -45,6 +45,22 @@ class JarvisToolRegistry:
             handler=handler,
         )
 
+    def has_tool(self, name: str) -> bool:
+        """Check if tool is registered."""
+        return name in self._tools
+
+    def get_tool(self, name: str) -> JarvisToolSpec | None:
+        """Retrieve tool specification."""
+        return self._tools.get(name)
+
+    def list_tools(self) -> list[JarvisToolSpec]:
+        """List all registered tool specifications."""
+        return list(self._tools.values())
+
+    def list_tool_names(self) -> list[str]:
+        """List names of all registered tools."""
+        return list(self._tools.keys())
+
     def _register_default_tools(self) -> None:
         """Populate initial macOS, browser, and media tools."""
         self.register_tool(

@@ -2,13 +2,13 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     environment:
-      POSTGRES_DB: ceo_os
-      POSTGRES_USER: ceo_os
-      POSTGRES_PASSWORD: ceo_os
+      POSTGRES_DB: ${CEO_OS_POSTGRES_DB:-ceo_os}
+      POSTGRES_USER: ${CEO_OS_POSTGRES_USER:-ceo_os}
+      POSTGRES_PASSWORD: ${CEO_OS_POSTGRES_PASSWORD:-ceo_os}
     ports: ["${CEO_OS_POSTGRES_PORT:-55432}:5432"]
     volumes: ["postgres_data:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ceo_os -d ceo_os"]
+      test: ["CMD-SHELL", "pg_isready -U ${CEO_OS_POSTGRES_USER:-ceo_os} -d ${CEO_OS_POSTGRES_DB:-ceo_os}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -29,14 +29,15 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
     environment:
-      CEO_OS_DATABASE_URL: postgresql+asyncpg://ceo_os:ceo_os@postgres:5432/ceo_os
+      CEO_OS_DATABASE_URL: postgresql+asyncpg://${CEO_OS_POSTGRES_USER:-ceo_os}:${CEO_OS_POSTGRES_PASSWORD:-ceo_os}@postgres:5432/${CEO_OS_POSTGRES_DB:-ceo_os}
       CEO_OS_REDIS_URL: redis://redis:6379/0
       CEO_OS_WORKSPACE_ROOT: /data/workspaces
       CEO_OS_CORS_ORIGINS: http://localhost:${CEO_OS_DASHBOARD_PORT:-3000}
-      CEO_OS_BROWSER_ENABLED: "true"
+      CEO_OS_BROWSER_ENABLED: "${CEO_OS_BROWSER_ENABLED:-false}"
+      CEO_OS_BROWSER_EFFECTS_ENABLED: "${CEO_OS_BROWSER_EFFECTS_ENABLED:-false}"
       CEO_OS_BROWSER_BROWSERS_PATH: /ms-playwright
-      CEO_OS_VISION_ENABLED: "false"
-      CEO_OS_VOICE_ENABLED: "false"
+      CEO_OS_VISION_ENABLED: "${CEO_OS_VISION_ENABLED:-false}"
+      CEO_OS_VOICE_ENABLED: "${CEO_OS_VOICE_ENABLED:-false}"
       LANGGRAPH_STRICT_MSGPACK: "true"
     ports: ["8000:8000"]
     volumes: ["workspace_data:/data/workspaces"]

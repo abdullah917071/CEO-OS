@@ -68,7 +68,8 @@ class AgentSearchTool:
     ) -> ToolResult:
         query = str(arguments.get("query", ""))
         div_str = arguments.get("division")
-        limit = int(arguments.get("limit", 5))
+        limit_val = arguments.get("limit", 5)
+        limit = int(str(limit_val)) if isinstance(limit_val, (int, str)) else 5
 
         division: AgentDivision | None = None
         if div_str and isinstance(div_str, str):
@@ -378,7 +379,8 @@ class AgentSpawnTeamTool:
         self, arguments: dict[str, object], *, idempotency_key: str | None = None
     ) -> ToolResult:
         objective = str(arguments.get("objective", ""))
-        max_spec = int(arguments.get("max_specialists", 5))
+        max_spec_val = arguments.get("max_specialists", 5)
+        max_spec = int(str(max_spec_val)) if isinstance(max_spec_val, (int, str)) else 5
 
         res = await self.orchestrator.assemble_and_run_team(objective, max_specialists=max_spec)
         return ToolResult(res, res.get("evidence", []))

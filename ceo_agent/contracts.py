@@ -8,6 +8,16 @@ from enum import StrEnum
 from typing import Any
 
 
+class CeoRunStatus(StrEnum):
+    SUCCESS = "SUCCESS"
+    PARTIAL_SUCCESS = "PARTIAL_SUCCESS"
+    FAILED = "FAILED"
+    TIMEOUT = "TIMEOUT"
+    CANCELLED = "CANCELLED"
+    INCOMPLETE = "INCOMPLETE"
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"
+
+
 class CeoRole(StrEnum):
     SYSTEM = "system"
     USER = "user"
@@ -45,6 +55,8 @@ class CeoMessage:
 class CeoTrajectoryStep:
     step_index: int
     thought: str
+    turn_index: int = 0
+    tool_call_index: int = 0
     tool_call: CeoToolCall | None = None
     tool_response: CeoToolResponse | None = None
     duration_ms: float = 0.0
@@ -61,6 +73,7 @@ class CeoTrajectoryRecord:
     final_response: str
     total_duration_ms: float
     status: str
+    safe_summary: dict[str, Any] | None = None
     recorded_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
@@ -115,6 +128,7 @@ class CeoRunResult:
     reflection: CeoReflectionResult | None
     evidence: list[str]
     duration_ms: float
+    safe_summary: dict[str, Any] | None = None
 
 
 # Backwards compatibility aliases

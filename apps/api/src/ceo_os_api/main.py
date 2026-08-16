@@ -762,7 +762,7 @@ async def router_search(body: RouterSearchRequest) -> object:
     tool = AgentSearchTool()
     div_dict = {"division": body.division} if body.division else {}
     res = await tool.execute({"query": body.query, "limit": body.limit, **div_dict})
-    out = res.output
+    out: dict[str, Any] = res.output if isinstance(res.output, dict) else {}
     candidates = [
         RouterCandidateSchema(
             agent_id=c["agent_id"],
@@ -786,7 +786,8 @@ async def router_inspect(agent_id: str) -> object:
 
     tool = AgentInspectTool()
     res = await tool.execute({"agent_id": agent_id})
-    if res.output.get("status") == "NOT_FOUND":
+    out: dict[str, Any] = res.output if isinstance(res.output, dict) else {}
+    if out.get("status") == "NOT_FOUND":
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
     return res.output
 
@@ -804,9 +805,9 @@ async def router_delegate(body: RouterDelegateRequest) -> object:
             "do_not_modify_production": body.do_not_modify_production,
         }
     )
-    if res.output.get("status") == "NOT_FOUND":
+    out: dict[str, Any] = res.output if isinstance(res.output, dict) else {}
+    if out.get("status") == "NOT_FOUND":
         raise HTTPException(status_code=404, detail=f"Agent '{body.agent_id}' not found")
-    out = res.output
     return RouterDelegateResponse(
         status=out.get("status", "success"),
         agent=out.get("agent", body.agent_id),
@@ -825,7 +826,7 @@ async def router_spawn_team(body: RouterTeamRequest) -> object:
 
     tool = AgentSpawnTeamTool()
     res = await tool.execute({"objective": body.objective, "max_specialists": body.max_specialists})
-    out = res.output
+    out: dict[str, Any] = res.output if isinstance(res.output, dict) else {}
     return RouterTeamResponse(
         status=out.get("status", "SUCCESS"),
         objective=out.get("objective", body.objective),

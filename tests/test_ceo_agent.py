@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import tempfile
+from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -201,3 +203,81 @@ async def test_ceo_agent_fastapi_endpoints() -> None:
         )
         assert sub_resp.status_code == 200
         assert sub_resp.json()["status"] == "SUCCESS"
+
+
+class FailingTool(Tool):
+    @property
+    def spec(self) -> CapabilitySpec:
+        return CapabilitySpec(
+            name="system.fail",
+            description="Always fails",
+            risk=RiskLevel.READ,
+            input_schema={"type": "object", "properties": {}},
+        )
+
+    async def execute(
+        self, arguments: dict[str, object], *, idempotency_key: str | None = None
+    ) -> ToolResult:
+        del arguments, idempotency_key
+        raise ConnectionRefusedError("Database connection refused")
+
+
+class MockFailingEngine:
+    async def generate(self, messages: list[Any]) -> str:
+        if len(messages) <= 2:
+            return '<thought>Attempting operation</thought><tool_call>{"name": "system.fail", "arguments": {}}</tool_call>'
+        return "I tried to run the tool."
+
+
+@pytest.mark.asyncio
+async def test_ceo_agent_failure_state_derivation() -> None:
+    registry = CapabilityRegistry()
+    registry.register(FailingTool())
+
+    agent = CeoAIAgent(capabilities=registry, llm=MockFailingEngine())
+    result = await agent.run(task_id="fail_task_1", objective="Perform failing operation")
+
+    # Critical requirement: CEO Agent must NOT report SUCCESS when tool failed
+    assert result.status == "FAILED"
+    assert "error" in result.trajectory.steps[0].tool_response.output
+
+
+class MockLoopingEngine:
+    async def generate(self, messages: list[Any]) -> str:
+        return '<thought>Still thinking</thought><tool_call>{"name": "time.now", "arguments": {}}</tool_call>'
+
+
+@pytest.mark.asyncio
+async def test_ceo_agent_max_turns_exceeded_incomplete() -> None:
+    registry = CapabilityRegistry()
+    registry.register(MockTimeTool())
+
+    agent = CeoAIAgent(capabilities=registry, llm=MockLoopingEngine())
+    result = await agent.run(task_id="loop_task_1", objective="Never ending query", max_turns=2)
+
+    # Critical requirement: Max turns exhaustion must yield INCOMPLETE, not fake success
+    assert result.status == "INCOMPLETE"
+    assert "Incomplete" in result.final_answer or "exceeded" in result.final_answer
+
+
+def test_safe_json_serialization_edge_cases() -> None:
+    from ceo_agent.serialization import safe_json_dumps, safe_json_serialize
+
+    data = {
+        "timestamp": datetime(2026, 8, 16, 12, 0, 0),
+        "path": Path("/Users/test/file.txt"),
+        "raw_bytes": b"hello \x00 binary",
+        "nested_set": {"alpha", "beta"},
+        "exception": ValueError("Invalid config parameter"),
+    }
+
+    serialized = safe_json_serialize(data)
+    assert isinstance(serialized["timestamp"], str)
+    assert serialized["path"] == "/Users/test/file.txt"
+    assert isinstance(serialized["raw_bytes"], str)
+    assert isinstance(serialized["nested_set"], list)
+    assert "ValueError" in serialized["exception"]
+
+    # Must serialize without exception
+    json_str = safe_json_dumps(data)
+    assert "2026-08-16" in json_str

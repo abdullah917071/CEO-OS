@@ -1,8 +1,7 @@
-"""CEO OS Executive AI Agent: drives multi-turn ReAct reasoning and tool execution."""
+"""CEO OS Executive AI Agent: drives multi-turn ReAct reasoning and tool execution with typed statuses."""
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from uuid import uuid4
@@ -11,6 +10,7 @@ from ceo_agent.contracts import (
     CeoMessage,
     CeoRole,
     CeoRunResult,
+    CeoRunStatus,
     CeoToolCall,
     CeoToolResponse,
     CeoTrajectoryRecord,
@@ -20,6 +20,8 @@ from ceo_agent.llm import CeoLlmProtocol, DeterministicCeoEngine
 from ceo_agent.parser import CeoToolParser
 from ceo_agent.prompting import CeoPromptFormatter
 from ceo_agent.reflection import CeoReflectiveEngine
+from ceo_agent.sanitizer import create_safe_execution_summary, sanitize_thought_text
+from ceo_agent.serialization import safe_json_dumps
 from ceo_agent.swarm import CeoSubagentSwarm
 from ceo_agent.trajectory import CeoTrajectoryStore
 from core.capabilities import CapabilityRegistry
@@ -74,6 +76,11 @@ class CeoAIAgent:
         all_evidence: list[str] = []
         final_answer = ""
         last_thought = ""
+        global_step_index = 0
+
+        tool_successes = 0
+        tool_failures = 0
+        max_turns_hit = False
 
         for turn in range(1, max_turns + 1):
             turn_start = time.monotonic()
@@ -89,10 +96,13 @@ class CeoAIAgent:
             if not tool_calls:
                 final_answer = clean_text or model_output
                 turn_dur = (time.monotonic() - turn_start) * 1000.0
+                global_step_index += 1
                 steps.append(
                     CeoTrajectoryStep(
-                        step_index=turn,
-                        thought=thought or "Executive synthesis formulated.",
+                        step_index=global_step_index,
+                        turn_index=turn,
+                        tool_call_index=0,
+                        thought=sanitize_thought_text(thought or "Executive synthesis formulated."),
                         tool_call=None,
                         tool_response=None,
                         duration_ms=turn_dur,
@@ -100,25 +110,35 @@ class CeoAIAgent:
                 )
                 break
 
-            for call in tool_calls:
+            for call_idx, call in enumerate(tool_calls, start=1):
+                global_step_index += 1
                 tool_start = time.monotonic()
                 tool_resp = await self._execute_tool(call)
                 tool_dur = (time.monotonic() - tool_start) * 1000.0
+
+                if tool_resp.error or (
+                    isinstance(tool_resp.output, dict) and "error" in tool_resp.output
+                ):
+                    tool_failures += 1
+                else:
+                    tool_successes += 1
 
                 if tool_resp.evidence:
                     all_evidence.extend(tool_resp.evidence)
 
                 steps.append(
                     CeoTrajectoryStep(
-                        step_index=turn,
-                        thought=thought,
+                        step_index=global_step_index,
+                        turn_index=turn,
+                        tool_call_index=call_idx,
+                        thought=sanitize_thought_text(thought),
                         tool_call=call,
                         tool_response=tool_resp,
                         duration_ms=tool_dur,
                     )
                 )
 
-                call_json = json.dumps({"name": call.name, "arguments": call.arguments})
+                call_json = safe_json_dumps({"name": call.name, "arguments": call.arguments})
                 messages.append(
                     CeoMessage(
                         role=CeoRole.ASSISTANT,
@@ -128,7 +148,7 @@ class CeoAIAgent:
                     )
                 )
 
-                resp_json = json.dumps(tool_resp.output)
+                resp_json = safe_json_dumps(tool_resp.output)
                 messages.append(
                     CeoMessage(
                         role=CeoRole.TOOL,
@@ -137,10 +157,36 @@ class CeoAIAgent:
                     )
                 )
 
+            if turn == max_turns and not final_answer:
+                max_turns_hit = True
+
         total_duration_ms = (time.monotonic() - start_time) * 1000.0
 
-        if not final_answer and steps:
-            final_answer = f"Autonomous CEO OS execution completed for: '{objective}'."
+        # Derive accurate run status
+        if max_turns_hit:
+            status = CeoRunStatus.INCOMPLETE
+            final_answer = f"Max reasoning turns ({max_turns}) exceeded for objective: '{objective}'. Incomplete."
+        elif tool_failures > 0 and tool_successes == 0:
+            status = CeoRunStatus.FAILED
+            if not final_answer:
+                final_answer = (
+                    f"Execution failed: all {tool_failures} tool operations encountered errors."
+                )
+        elif tool_failures > 0 and tool_successes > 0:
+            status = CeoRunStatus.PARTIAL_SUCCESS
+            if not final_answer:
+                final_answer = f"Partial execution completed with {tool_successes} successful and {tool_failures} failed operations."
+        else:
+            status = CeoRunStatus.SUCCESS
+            if not final_answer and steps:
+                final_answer = f"Autonomous CEO OS execution completed for: '{objective}'."
+
+        safe_summary = create_safe_execution_summary(
+            objective=objective,
+            steps=steps,
+            final_answer=final_answer,
+            status=status.value,
+        )
 
         record = CeoTrajectoryRecord(
             trajectory_id=trajectory_id,
@@ -150,7 +196,8 @@ class CeoAIAgent:
             steps=steps,
             final_response=final_answer,
             total_duration_ms=total_duration_ms,
-            status="SUCCESS",
+            status=status.value,
+            safe_summary=safe_summary,
         )
         self.trajectory_store.save(record)
 
@@ -160,13 +207,14 @@ class CeoAIAgent:
             run_id=f"run_{uuid4().hex[:8]}",
             task_id=task_id,
             objective=objective,
-            status="SUCCESS",
-            thought=last_thought,
+            status=status.value,
+            thought=sanitize_thought_text(last_thought),
             final_answer=final_answer,
             trajectory=record,
             reflection=reflection,
             evidence=all_evidence,
             duration_ms=total_duration_ms,
+            safe_summary=safe_summary,
         )
 
     async def _execute_tool(self, call: CeoToolCall) -> CeoToolResponse:
@@ -199,11 +247,11 @@ class CeoAIAgent:
             from jarvis.backend.tools.registry import JarvisToolRegistry
 
             jarvis_registry = JarvisToolRegistry(ToolPermissionManager())
-            # Normalize name by removing namespace prefixes
+            # Canonical namespace prefix stripping
             clean_name = (
-                call.name.replace("browser.", "").replace("macos.", "").replace("media.", "")
+                call.name.removeprefix("browser.").removeprefix("macos.").removeprefix("media.")
             )
-            if clean_name in jarvis_registry._tools:
+            if jarvis_registry.has_tool(clean_name):
                 jarvis_res = await jarvis_registry.execute_tool(clean_name, call.arguments)
                 return CeoToolResponse(
                     name=call.name,
