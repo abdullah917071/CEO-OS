@@ -8,8 +8,11 @@ Last updated: 2026-08-16
 - On-demand dynamic specialist generation (`GeneratedAgentProvider`) when no suitable catalog specialist matches.
 - Router primitive capabilities: `agent.search`, `agent.inspect`, `agent.spawn`, `agent.delegate`, `agent.spawn_team`, `agent.create`.
 - REST endpoints under `/api/v1/router/*` for searching, inspecting, delegating, team assembly, creation, and feedback.
-- Jarvis Voice Assistant upgrades: Gemini Live WebSocket integration supporting both Vertex AI OAuth Bearer authentication and Google AI Studio Developer API Key (`GEMINI_API_KEY`), plus `/api/jarvis/chat` voice text directive endpoint.
-- 207 passing tests with 100% clean formatting and linting.
+- Jarvis Voice Assistant upgrades: Real `sounddevice` hardware microphone capture with pre-roll buffering, real `openWakeWord` and `ONNX Runtime` local inference, Gemini Live WebSocket integration (supporting both Vertex AI and Google AI Studio Developer API keys), and `/api/jarvis/chat` voice text directive endpoint.
+- Complete package wheel configuration in Hatch for all workspace modules (`ceo_agent`, `jarvis`, `hermes`, `gstack`, `agency`, `proactive`, `production`, `intelligence`, `workflows`).
+- CEO Agent ReAct state machine with accurate status derivation (`SUCCESS`, `PARTIAL_SUCCESS`, `FAILED`, `INCOMPLETE`), safe audit-grade execution summaries, canonical recursive JSON serialization, and monotonic step indexing.
+- Continuous Integration workflow (`.github/workflows/ci.yml`) for Ruff, Mypy, Pytest, Next.js build, and wheel packaging tests.
+- 210 passing tests with 100% clean formatting and mypy type checks.
 
 - Numbered product and architecture documentation plus governing milestone plan.
 - Python project baseline and provider-neutral contracts for tasks, plans, capabilities, models, tools, events, and risk.
