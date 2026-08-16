@@ -2,7 +2,14 @@
 
 Last updated: 2026-08-16
 
-## Implemented
+- Universal Agent Registry & Dynamic Router aggregating 4 provider classes (Native permanent directors, 270+ Agency Agents specialist personas, Custom agents, and Generated dynamic on-demand agents).
+- Multi-factor candidate ranking combining TF-IDF/semantic relevance, historical success rates, average confidence, cost efficiency, and owner feedback scoring.
+- Dynamic multi-agent team assembly (`spawn_team`) with dependency graphs, parallel stage execution, and CEO synthesis.
+- On-demand dynamic specialist generation (`GeneratedAgentProvider`) when no suitable catalog specialist matches.
+- Router primitive capabilities: `agent.search`, `agent.inspect`, `agent.spawn`, `agent.delegate`, `agent.spawn_team`, `agent.create`.
+- REST endpoints under `/api/v1/router/*` for searching, inspecting, delegating, team assembly, creation, and feedback.
+- Jarvis Voice Assistant upgrades: Gemini Live WebSocket integration supporting both Vertex AI OAuth Bearer authentication and Google AI Studio Developer API Key (`GEMINI_API_KEY`), plus `/api/jarvis/chat` voice text directive endpoint.
+- 207 passing tests with 100% clean formatting and linting.
 
 - Numbered product and architecture documentation plus governing milestone plan.
 - Python project baseline and provider-neutral contracts for tasks, plans, capabilities, models, tools, events, and risk.
