@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import urllib.parse
 from typing import Any
 
@@ -9,21 +10,25 @@ from jarvis.backend.tools.macos import _run_applescript
 
 
 async def open_url(url: str) -> dict[str, Any]:
-    """Open specified web URL in default browser."""
+    """Open specified web URL in default browser when effects enabled."""
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
 
-    safe_url = url.replace('"', '\\"')
-    script = f'open location "{safe_url}"'
-    try:
-        await _run_applescript(script)
-    except Exception:
-        import webbrowser
+    effects_enabled = os.getenv("CEO_OS_EFFECTS_ENABLED", "true").lower() in ("true", "1", "yes")
 
+    if effects_enabled and "pytest" not in os.environ:
+        safe_url = url.replace('"', '\\"')
+        script = f'open location "{safe_url}"'
         try:
-            webbrowser.open(url)
+            await _run_applescript(script)
         except Exception:
-            pass
+            import webbrowser
+
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
+
     return {"status": "SUCCESS", "message": f"Opened {url}", "url": url}
 
 

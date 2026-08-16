@@ -28,14 +28,14 @@ export default function JarvisStudioPage() {
     {
       id: "v-1",
       sender: "user",
-      text: "Jarvis, check system status and open YouTube.",
+      text: "Jarvis, check system status and audio telemetry.",
       timestamp: "18:22:10",
     },
     {
       id: "v-2",
       sender: "jarvis",
-      text: "Opened sir. System health is optimal, and YouTube is now loading in your browser.",
-      actionSummary: "macOS AppleScript: open https://www.youtube.com",
+      text: "System online (Apple Silicon, CPU 12%, Memory 8.4GB). Hardware audio playback and microphone capture active.",
+      actionSummary: "macOS Telemetry: get_system_stats",
       timestamp: "18:22:11",
     },
   ]);

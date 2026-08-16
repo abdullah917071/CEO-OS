@@ -50,17 +50,17 @@ export const ChatComposer = memo(function ChatComposer({
   };
 
   const quickVoiceDirectives = [
-    "Jarvis, open YouTube",
+    "Find 10 competitors to Suppremo and analyze pricing",
+    "Audit AWS cloud spend & FinOps run rate",
     "Jarvis, get system stats",
     "Jarvis, open Spotify",
-    "Find 10 competitors to Suppremo",
   ];
 
   return (
     <div className="chatComposerContainer">
       {/* Quick Voice & Directive Pills */}
       <div className="quickDirectiveRow">
-        <span className="quickDirectiveLabel">⚡ Jarvis Directives:</span>
+        <span className="quickDirectiveLabel">⚡ Quick Directives:</span>
         {quickVoiceDirectives.map((cmd) => (
           <button
             key={cmd}
@@ -69,7 +69,7 @@ export const ChatComposer = memo(function ChatComposer({
             onClick={() => onSendMessage(cmd)}
             disabled={isProcessing}
           >
-            🎙️ {cmd}
+            🚀 {cmd}
           </button>
         ))}
       </div>
