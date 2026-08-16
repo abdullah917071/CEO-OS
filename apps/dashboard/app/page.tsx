@@ -185,6 +185,25 @@ export default function JoicePage() {
       </div>
 
       <div className="contextPanelBody">
+        {/* CEO Model Engine */}
+        <div className="contextSection">
+          <div className="contextSectionTitle">CEO Brain & Reasoning</div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Model</span>
+            <span className="metricVal" style={{ color: "var(--accent-primary)", fontWeight: 600 }}>
+              nvidia/nemotron-3.5-lightning:free
+            </span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Provider</span>
+            <span className="metricVal">OpenRouter</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Role</span>
+            <span className="metricVal">Primary Intelligence (Joice)</span>
+          </div>
+        </div>
+
         {/* Active Task Overview */}
         {activeTask && (
           <div className="contextSection">

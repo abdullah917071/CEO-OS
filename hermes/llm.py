@@ -128,11 +128,23 @@ class OpenAiCompatibleHermesEngine:
         self,
         base_url: str | None = None,
         api_key: str | None = None,
-        model_name: str = "nousresearch/hermes-3-llama-3.1-8b",
+        model_name: str = "nvidia/nemotron-3.5-lightning:free",
     ) -> None:
-        self.base_url = base_url or os.getenv("HERMES_API_BASE", "https://api.openai.com/v1")
-        self.api_key = api_key or os.getenv("HERMES_API_KEY", "")
-        self.model_name = model_name
+        self.base_url = (
+            base_url
+            or os.getenv("HERMES_API_BASE")
+            or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+        )
+        self.api_key = (
+            api_key
+            or os.getenv("HERMES_API_KEY")
+            or os.getenv("OPENROUTER_API_KEY", "")
+        )
+        self.model_name = (
+            model_name
+            or os.getenv("HERMES_MODEL_NAME")
+            or os.getenv("CEO_OS_MODEL_NAME", "nvidia/nemotron-3.5-lightning:free")
+        )
 
     async def generate(self, messages: list[HermesMessage], **kwargs: Any) -> str:
         if (

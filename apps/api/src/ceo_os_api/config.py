@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./data/ceo_os.db"
     redis_url: str = "redis://localhost:6379/0"
     workspace_root: Path = Path("./data/workspaces")
-    model_provider: str = "deterministic"
-    model_name: str = "foundation"
+    model_provider: str = "openrouter"
+    model_name: str = "nvidia/nemotron-3.5-lightning:free"
     openai_api_key: str = ""
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"

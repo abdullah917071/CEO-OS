@@ -129,16 +129,22 @@ export default function SettingsPage() {
               <div className="contextSection">
                 <div className="contextSectionTitle">Model Provider Routing</div>
                 <div className="metricKeyValue">
-                  <span className="metricKey">Joice Reasoning</span>
-                  <span className="metricVal">Anthropic Claude 3.5 Sonnet</span>
+                  <span className="metricKey">Joice Reasoning (CEO Brain)</span>
+                  <span className="metricVal" style={{ color: "var(--accent-primary)", fontWeight: 600 }}>
+                    nvidia/nemotron-3.5-lightning:free (OpenRouter)
+                  </span>
                 </div>
                 <div className="metricKeyValue">
                   <span className="metricKey">Jarvis Realtime Live</span>
-                  <span className="metricVal">Google Gemini Multimodal Live</span>
+                  <span className="metricVal">Google Gemini 3.1 Flash Live (Kore)</span>
                 </div>
                 <div className="metricKeyValue">
                   <span className="metricKey">Fast Classification</span>
-                  <span className="metricVal">Gemini 3.7 Flash</span>
+                  <span className="metricVal">nvidia/nemotron-3.5-lightning:free</span>
+                </div>
+                <div className="metricKeyValue">
+                  <span className="metricKey">Embedding Model</span>
+                  <span className="metricVal">text-embedding-3-small (1536d)</span>
                 </div>
               </div>
             )}
