@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from jarvis.backend.agent.brain import JarvisBrain
 from jarvis.backend.agent.events import JarvisEventBus
 from jarvis.backend.agent.state import JarvisState
 from jarvis.backend.audio.capture import AudioCaptureStream
@@ -47,6 +48,7 @@ class JarvisAgentManager:
         self.tool_registry = JarvisToolRegistry(self.permission_manager)
         self.event_bus = JarvisEventBus()
         self.usage_tracker = JarvisUsageTracker(self.db)
+        self.brain = JarvisBrain()
 
         # Audio subsystems
         self.audio_processor = AudioProcessor(
@@ -340,7 +342,7 @@ class JarvisAgentManager:
             reply_text = f"Searching Google for '{q}'."
 
         else:
-            reply_text = f"Processing directive: {raw_msg}."
+            reply_text = await self.brain.generate_response(raw_msg)
 
         # Broadcast tool events
         for tc in tool_calls_executed:
