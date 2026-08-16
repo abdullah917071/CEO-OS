@@ -1137,7 +1137,38 @@ async def interactive_chat_endpoint(
         task_id_str = task_rec.id
 
     agent = get_ceo_agent(request)
-    result = await agent.run(task_id=task_id_str, objective=body.message)
+    try:
+        result = await agent.run(task_id=task_id_str, objective=body.message)
+    except Exception as exc:
+        logger.warning("CEO agent run failed: %s", exc)
+        # Return a clean 200 with an informative message instead of a 500 crash
+        error_detail = str(exc)
+        # Surface helpful hint for the most common config issue
+        if "403" in error_detail or "401" in error_detail:
+            user_msg = (
+                "⚠️ I couldn't reach the AI provider — the API key is missing or invalid.\n\n"
+                "**Fix**: Open your `.env` file and set:\n"
+                "```\nCEO_OS_OPENROUTER_API_KEY=sk-or-v1-...\n```\n"
+                "Get a free key at [openrouter.ai](https://openrouter.ai/keys). "
+                "I'll use the built-in reasoning engine until then."
+            )
+        elif "429" in error_detail:
+            user_msg = "⚠️ Rate limit hit on the AI provider. I'll retry in a moment — please try again."
+        else:
+            user_msg = f"⚠️ Execution error: {error_detail[:200]}"
+        spoken = user_msg.replace("**", "").replace("`", "").replace("##", "").replace("\n", " ").strip()
+        return {
+            "task_id": task_id_str,
+            "objective": body.message,
+            "status": "failed",
+            "thought": f"Agent error: {error_detail}",
+            "final_answer": user_msg,
+            "spoken_response": spoken,
+            "tool_calls": [],
+            "steps": [],
+            "evidence": [],
+            "duration_ms": 0,
+        }
 
     # Extract tool calls and step traces
     tool_calls_list: list[dict[str, Any]] = []

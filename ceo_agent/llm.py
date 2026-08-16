@@ -190,35 +190,52 @@ class OpenAiCompatibleCeoEngine(CeoLlmProtocol):
         )
 
     async def generate(self, messages: list[CeoMessage], **kwargs: Any) -> str:
-        if (
+        # Treat empty / whitespace-only key same as missing — avoids 401/403 from provider
+        api_key_missing = (
             not self.api_key
+            or not self.api_key.strip()
             or self.api_key.startswith("mock_")
+            or self.api_key.startswith("sk-or-v1-your")
             or "pytest" in sys.modules
             or "PYTEST_CURRENT_TEST" in os.environ
-        ):
+        )
+        if api_key_missing:
+            logger.info("No valid LLM API key — using deterministic fallback engine")
             return await DeterministicCeoEngine().generate(messages, **kwargs)
 
         import httpx
 
         formatted_messages = [{"role": m.role.value, "content": m.content} for m in messages]
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                f"{self.base_url.rstrip('/')}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": self.model_name,
-                    "messages": formatted_messages,
-                    "temperature": kwargs.get("temperature", 0.2),
-                    "max_tokens": kwargs.get("max_tokens", 2048),
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return str(data["choices"][0]["message"]["content"])
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    f"{self.base_url.rstrip('/')}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self.model_name,
+                        "messages": formatted_messages,
+                        "temperature": kwargs.get("temperature", 0.2),
+                        "max_tokens": kwargs.get("max_tokens", 2048),
+                    },
+                )
+                # 401 / 403 → key is invalid or missing credits; fall back gracefully
+                if resp.status_code in (401, 403, 429):
+                    logger.warning(
+                        "LLM provider returned %s — falling back to deterministic engine. "
+                        "Set CEO_OS_OPENROUTER_API_KEY in your .env file.",
+                        resp.status_code,
+                    )
+                    return await DeterministicCeoEngine().generate(messages, **kwargs)
+                resp.raise_for_status()
+                data = resp.json()
+                return str(data["choices"][0]["message"]["content"])
+        except httpx.ConnectError:
+            logger.warning("Cannot reach LLM provider — falling back to deterministic engine")
+            return await DeterministicCeoEngine().generate(messages, **kwargs)
 
 
 # Backwards compatibility aliases

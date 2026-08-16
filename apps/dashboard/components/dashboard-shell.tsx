@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { API, requestJson, WS } from "../lib/api";
+import { API, requestJson, WS_EVENTS } from "../lib/api";
 import type { Task } from "../lib/contracts";
 
 const NAV_LINKS = [
@@ -76,7 +76,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
     const connect = () => {
       try {
-        socket = new WebSocket(WS);
+        socket = new WebSocket(WS_EVENTS);
         socket.onopen = () => {
           setConnected(true);
           setRevision((v) => v + 1);
