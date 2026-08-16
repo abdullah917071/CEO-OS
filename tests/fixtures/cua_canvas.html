@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>CEO OS CUA Fixture Ready</title>
+    <style>
+      html, body { margin: 0; background: #eef2f7; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas id="surface" width="800" height="500" aria-hidden="true"></canvas>
+    <script>
+      const canvas = document.getElementById("surface");
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#17324d";
+      context.fillRect(240, 170, 320, 120);
+      context.fillStyle = "#ffffff";
+      context.font = "bold 28px system-ui";
+      context.textAlign = "center";
+      context.fillText("VERIFY CUA", 400, 242);
+      canvas.addEventListener("click", (event) => {
+        if (event.offsetX >= 240 && event.offsetX <= 560 && event.offsetY >= 170 && event.offsetY <= 290) {
+          document.title = "CEO OS CUA Fixture Success";
+          context.fillStyle = "#166534";
+          context.fillRect(240, 170, 320, 120);
+          context.fillStyle = "#ffffff";
+          context.fillText("VERIFIED", 400, 242);
+        }
+      });
+    </script>
+  </body>
+</html>

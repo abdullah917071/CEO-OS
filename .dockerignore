@@ -1,0 +1,14 @@
+.git
+.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.mypy_cache
+apps/dashboard/node_modules
+apps/dashboard/.next
+**/.build
+.playwright-browsers
+apps/dashboard/*.tsbuildinfo
+data
+.env
+*.db
