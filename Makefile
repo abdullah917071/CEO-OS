@@ -1,4 +1,4 @@
-.PHONY: install dev api dashboard infra-up infra-down test lint format check
+.PHONY: install dev api dashboard infra-up infra-down test lint typecheck format build check
 
 install:
 	uv sync --all-groups
@@ -19,17 +19,23 @@ dashboard:
 dev:
 	docker compose up --build
 
-test:
-	uv run pytest
-	npm --prefix apps/dashboard run test
-
 lint:
 	uv run ruff check .
 	npm --prefix apps/dashboard run lint
 
+typecheck:
+	uv run mypy
+	npm --prefix apps/dashboard run typecheck
+
+test:
+	uv run pytest
+	npm --prefix apps/dashboard test
+
 format:
 	uv run ruff format .
 
-check: lint test
+build:
+	uv build
 	npm --prefix apps/dashboard run build
 
+check: lint typecheck test build

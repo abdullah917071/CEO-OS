@@ -207,10 +207,11 @@ class OpenAiCompatibleCeoEngine(CeoLlmProtocol):
 
         formatted_messages = [{"role": m.role.value, "content": m.content} for m in messages]
 
+        base_url = (self.base_url or "https://openrouter.ai/api/v1").rstrip("/")
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 resp = await client.post(
-                    f"{self.base_url.rstrip('/')}/chat/completions",
+                    f"{base_url}/chat/completions",
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",

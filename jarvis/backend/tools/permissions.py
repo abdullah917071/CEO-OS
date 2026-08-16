@@ -43,8 +43,8 @@ DEFAULT_TOOL_PERMISSIONS: dict[str, PermissionLevel] = {
 class ToolPermissionManager:
     """Manages persistent ALLOW / ASK / DENY permission policies for all Jarvis tools."""
 
-    def __init__(self, db: JarvisDatabase) -> None:
-        self.db = db
+    def __init__(self, db: JarvisDatabase | None = None) -> None:
+        self.db = db or JarvisDatabase()
         self._ensure_defaults()
 
     def _ensure_defaults(self) -> None:

@@ -1308,4 +1308,58 @@ main {
   gap: 16px;
 }
 
+/* 7. Jarvis Voice & Quick Directives */
+.voiceOrbHeaderTrigger { cursor: pointer; transition: transform var(--transition-fast); }
+.voiceOrbHeaderTrigger:hover { transform: scale(1.05); }
+
+.liveVoiceDot { width: 6px; height: 6px; border-radius: 50%; background: var(--color-cyan); }
+.liveVoiceDot.active { background: var(--color-red); animation: pulseGlow 1s infinite; }
+
+.headerControlBtn.voiceBtnActive {
+  background: rgba(239,68,68,0.15);
+  border-color: var(--color-red);
+  color: var(--color-red);
+  font-weight: 700;
+}
+
+.quickDirectiveRow { display: flex; align-items: center; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.quickDirectiveLabel { font-size: 0.7rem; font-family: var(--font-mono); color: var(--color-text-muted); font-weight: 700; flex-shrink: 0; }
+.quickDirectivePill {
+  background: var(--color-bg-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 99px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+.quickDirectivePill:hover {
+  background: var(--color-cyan-dim);
+  border-color: var(--color-cyan);
+  color: var(--color-cyan);
+}
+
+.composerVoiceOrbBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-border);
+  padding: 4px 12px 4px 6px;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.composerVoiceOrbBtn:hover { border-color: var(--color-cyan); }
+.composerVoiceOrbBtn.recording {
+  background: rgba(239,68,68,0.15);
+  border-color: var(--color-red);
+}
+.orbWrapperSmall { display: flex; align-items: center; justify-content: center; }
+.voiceBtnLabel { font-size: 0.75rem; font-weight: 600; color: var(--color-text-primary); }
+.composerMainBox.voiceActiveBorder { border-color: var(--color-red); box-shadow: 0 0 20px rgba(239,68,68,0.2); }
+
+
 

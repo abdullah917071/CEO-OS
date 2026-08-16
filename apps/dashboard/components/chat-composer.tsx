@@ -1,6 +1,7 @@
 "use client";
 
 import React, { memo, useEffect, useRef, useState } from "react";
+import { VoiceOrb } from "./voice-orb";
 
 interface ChatComposerProps {
   onSendMessage: (text: string, attachments?: string[]) => void;
@@ -48,8 +49,31 @@ export const ChatComposer = memo(function ChatComposer({
     }
   };
 
+  const quickVoiceDirectives = [
+    "Jarvis, open YouTube",
+    "Jarvis, get system stats",
+    "Jarvis, open Spotify",
+    "Find 10 competitors to Suppremo",
+  ];
+
   return (
     <div className="chatComposerContainer">
+      {/* Quick Voice & Directive Pills */}
+      <div className="quickDirectiveRow">
+        <span className="quickDirectiveLabel">⚡ Jarvis Directives:</span>
+        {quickVoiceDirectives.map((cmd) => (
+          <button
+            key={cmd}
+            type="button"
+            className="quickDirectivePill"
+            onClick={() => onSendMessage(cmd)}
+            disabled={isProcessing}
+          >
+            🎙️ {cmd}
+          </button>
+        ))}
+      </div>
+
       {/* Advanced Settings Drawer (Collapsible) */}
       {isAdvancedOpen && (
         <div className="advancedSettingsDrawer">
@@ -84,22 +108,25 @@ export const ChatComposer = memo(function ChatComposer({
             <span className="settingLabel">Execution Mode</span>
             <div className="modePills">
               <button
+                type="button"
                 className={`modePill ${executionMode === "ceo" ? "active" : ""}`}
                 onClick={() => setExecutionMode("ceo")}
               >
-                👑 CEO Mode
+                👑 CEO AI
               </button>
               <button
+                type="button"
                 className={`modePill ${executionMode === "jarvis" ? "active" : ""}`}
                 onClick={() => setExecutionMode("jarvis")}
               >
-                🎙️ Jarvis Voice
+                🤖 Jarvis Voice
               </button>
               <button
+                type="button"
                 className={`modePill ${executionMode === "swarm" ? "active" : ""}`}
                 onClick={() => setExecutionMode("swarm")}
               >
-                🐝 Swarm
+                🐝 Multi-Agent Swarm
               </button>
             </div>
           </div>
@@ -107,49 +134,72 @@ export const ChatComposer = memo(function ChatComposer({
       )}
 
       {/* Main Composer Box */}
-      <div className="composerMainBox">
+      <div className={`composerMainBox ${isVoiceActive ? "voiceActiveBorder" : ""}`}>
         <textarea
           ref={textareaRef}
-          className="composerTextarea"
           rows={1}
-          placeholder="Ask CEO OS anything... (e.g. 'Research competitors to Suppremo and build a landing page')"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
+          placeholder={
+            isVoiceActive
+              ? "🎙️ Jarvis is listening... Speak your directive or type here..."
+              : "Ask CEO OS or say 'Jarvis, open YouTube' (Shift+Enter for newline)..."
+          }
+          className="composerTextarea"
           disabled={isProcessing}
         />
 
-        <div className="composerControlsRow">
+        <div className="composerBottomBar">
           <div className="composerLeftControls">
             <button
-              className={`composerIconBtn ${isAdvancedOpen ? "active" : ""}`}
+              type="button"
+              className="composerIconBtn"
               onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
-              title="Configure Model & Reasoning Settings"
+              title="Configure Model & Execution Mode"
             >
-              ⚙️
+              ⚙️ <span className="activeModelTag">{selectedModel.split(" ")[0]}</span>
             </button>
+
             <button
+              type="button"
               className="composerIconBtn"
               onClick={onOpenCommandPalette}
-              title="Global Command Center (⌘K)"
+              title="Open Command Palette (⌘K)"
             >
               ⌘K
             </button>
-            <span className="activeModelTag">
-              👑 CEO · {selectedModel.split(" ")[0]} · {reasoningLevel.split(" ")[0]}
-            </span>
           </div>
 
           <div className="composerRightControls">
+            {/* Prominent Jarvis Voice Orb Trigger */}
             <button
-              className={`composerVoiceBtn ${isVoiceActive ? "recording" : ""}`}
+              type="button"
+              className={`composerVoiceOrbBtn ${isVoiceActive ? "recording" : ""}`}
               onClick={onToggleVoice}
-              title={isVoiceActive ? "Stop voice listening" : "Talk to Jarvis (Microphone)"}
+              title={isVoiceActive ? "Stop Voice Listening" : "Start Jarvis Voice Conversation"}
             >
-              {isVoiceActive ? "🔴 Listening..." : "🎙️"}
+              <div className="orbWrapperSmall">
+                <VoiceOrb
+                  state={
+                    isVoiceActive
+                      ? isProcessing
+                        ? "thinking"
+                        : "listening"
+                      : isProcessing
+                        ? "thinking"
+                        : "idle"
+                  }
+                  size={32}
+                />
+              </div>
+              <span className="voiceBtnLabel">
+                {isVoiceActive ? "Listening..." : "Jarvis Voice"}
+              </span>
             </button>
 
             <button
+              type="button"
               className="composerSendBtn"
               onClick={handleSend}
               disabled={!text.trim() || isProcessing}

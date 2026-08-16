@@ -224,11 +224,16 @@ class CeoAIAgent:
             try:
                 tool = self.capabilities.get(call.name)
                 if tool is not None:
-                    result = await tool.execute(call.arguments)
+                    tool_res = await tool.execute(call.arguments)
+                    output_payload = (
+                        tool_res.output
+                        if isinstance(tool_res.output, dict)
+                        else {"result": tool_res.output}
+                    )
                     return CeoToolResponse(
                         name=call.name,
-                        output=result.output,
-                        evidence=result.evidence,
+                        output=output_payload,
+                        evidence=tool_res.evidence,
                         call_id=call.call_id,
                     )
             except Exception as exc:

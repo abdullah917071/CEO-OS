@@ -24,7 +24,7 @@ def list_audio_devices() -> dict[str, list[AudioDeviceInfo]]:
     outputs: list[AudioDeviceInfo] = []
 
     try:
-        import sounddevice as sd  # type: ignore[import-untyped]
+        import sounddevice as sd
 
         devices = sd.query_devices()
         for idx, dev in enumerate(devices):

@@ -3,8 +3,8 @@
 /**
  * CEO OS — Chat-Centric Mission Control Dashboard
  *
- * Primary interaction model: One unified conversation with real-time autonomous execution
- * visible directly inside the chat feed.
+ * Primary interaction model: Unified conversation with real-time autonomous execution
+ * and integrated Jarvis voice assistant with bidirectional speech synthesis & recognition.
  */
 
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
@@ -19,13 +19,13 @@ import type { ContextPanelData } from "../components/context-panel";
 import { CommandPalette } from "../components/command-palette";
 import { TaskSwitcher } from "../components/task-switcher";
 import type { RunningTaskItem } from "../components/task-switcher";
+import { VoiceOrb } from "../components/voice-orb";
 import { requestJson, WS } from "../lib/api";
 import type {
   AgentActiveMember,
   ArtifactCardData,
   ConversationItem,
   InteractiveChatResponse,
-  Task,
 } from "../lib/contracts";
 
 /* ─── Initial Demo Conversation & Tasks ────────────────────────────────────── */
@@ -235,6 +235,8 @@ export default function MissionControlPage() {
   const [activeLiveTask, setActiveLiveTask] = useState<LiveTask | null>(INITIAL_TASK);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   // Contextual Right Panel State
   const [isContextOpen, setIsContextOpen] = useState(true);
@@ -259,6 +261,7 @@ export default function MissionControlPage() {
   // Command Palette & Running Tasks
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Auto-scroll chat
   const scrollToBottom = useCallback(() => {
@@ -268,6 +271,23 @@ export default function MissionControlPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, activeLiveTask, scrollToBottom]);
+
+  // Voice synthesis helper
+  const speakText = useCallback(
+    (textToSpeak: string) => {
+      if (isMuted || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+      window.speechSynthesis.cancel();
+      const clean = textToSpeak.replace(/<[^>]*>/g, "").replace(/[*_#`]/g, "");
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      window.speechSynthesis.speak(utterance);
+    },
+    [isMuted]
+  );
 
   // Handle sending a directive
   const handleSendMessage = async (text: string) => {
@@ -284,7 +304,6 @@ export default function MissionControlPage() {
     setMessages((prev) => [...prev, newMsg]);
     setIsProcessing(true);
 
-    // If text mentions Jarvis or voice action
     const isJarvisDirective = text.toLowerCase().includes("jarvis");
 
     try {
@@ -305,9 +324,11 @@ export default function MissionControlPage() {
             id: `jarvis_${Date.now()}`,
             sender: "jarvis",
             text: reply,
+            spokenResponse: reply,
             timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           },
         ]);
+        speakText(reply);
       } else {
         // Execute CEO AI task
         const res = await requestJson<InteractiveChatResponse>("/api/v1/chat/interactive", {
@@ -327,23 +348,72 @@ export default function MissionControlPage() {
             timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           },
         ]);
+        if (isVoiceActive) {
+          speakText(replyText);
+        }
       }
     } catch (err) {
       console.warn("Backend chat request fallback:", err);
-      // Clean fallback response
+      const fallbackReply = `Understood. Processing your directive: "${text}". I have assigned the relevant specialist agents.`;
       setMessages((prev) => [
         ...prev,
         {
           id: `ceo_${Date.now()}`,
           sender: "ceo",
-          text: `Understood. Processing your directive: "${text}". I have assigned the relevant specialist agents.`,
+          text: fallbackReply,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         },
       ]);
+      if (isVoiceActive) {
+        speakText(fallbackReply);
+      }
     } finally {
       setIsProcessing(false);
     }
   };
+
+  // Web Speech Recognition setup
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event: any) => {
+          const current = event.resultIndex;
+          const transcript = event.results[current][0].transcript.trim();
+          if (transcript) {
+            handleSendMessage(transcript);
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn("Speech recognition error:", event.error);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
+  }, []);
+
+  // Toggle voice recognition
+  useEffect(() => {
+    if (recognitionRef.current) {
+      if (isVoiceActive) {
+        try {
+          recognitionRef.current.start();
+        } catch {}
+      } else {
+        try {
+          recognitionRef.current.stop();
+        } catch {}
+      }
+    }
+  }, [isVoiceActive]);
 
   // Inspecting agent in right panel
   const handleSelectAgent = (agent: AgentActiveMember) => {
@@ -497,6 +567,14 @@ export default function MissionControlPage() {
     },
   ];
 
+  const voiceState = isSpeaking
+    ? "speaking"
+    : isProcessing
+      ? "thinking"
+      : isVoiceActive
+        ? "listening"
+        : "idle";
+
   return (
     <div className="appShell">
       {/* 1. Left Minimal Sidebar */}
@@ -531,18 +609,32 @@ export default function MissionControlPage() {
 
       {/* 3. Center Main Chat Area */}
       <main className="workspace" style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Chat Header */}
+        {/* Chat Header with Interactive Jarvis Voice Orb */}
         <header className="chatHeaderRow">
           <div className="headerMetaLeft">
             <div className="headerCeoIdentity">
-              <span className="ceoAvatarIcon">👑</span>
+              <div
+                className="voiceOrbHeaderTrigger"
+                onClick={() => setIsVoiceActive(!isVoiceActive)}
+                title="Click to toggle Jarvis live voice listener"
+              >
+                <VoiceOrb state={voiceState} size={42} />
+              </div>
               <div>
                 <h2 className="headerTitle">
                   {conversations.find((c) => c.id === activeConvId)?.title || "Suppremo Growth & Research"}
                 </h2>
                 <div className="headerStatusSub">
-                  <span className="liveGreenDot" />
-                  <span>CEO Mode · Autonomous · 3 Agents Active</span>
+                  <span className={`liveVoiceDot ${isVoiceActive ? "active" : ""}`} />
+                  <span>
+                    {isSpeaking
+                      ? "Jarvis Vocalizing Answer..."
+                      : isProcessing
+                        ? "Jarvis Reasoning..."
+                        : isVoiceActive
+                          ? "Jarvis Listening (Speak now)..."
+                          : "Jarvis Voice Standby · 3 Agents Active"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -550,6 +642,25 @@ export default function MissionControlPage() {
 
           <div className="headerControlsRight">
             <button
+              type="button"
+              className={`headerControlBtn ${isVoiceActive ? "voiceBtnActive" : ""}`}
+              onClick={() => setIsVoiceActive(!isVoiceActive)}
+              title={isVoiceActive ? "Mute Microphone" : "Activate Jarvis Voice"}
+            >
+              {isVoiceActive ? "🎙️ Mic ON" : "🎙️ Voice Mode"}
+            </button>
+
+            <button
+              type="button"
+              className="headerControlBtn"
+              onClick={() => setIsMuted(!isMuted)}
+              title={isMuted ? "Unmute Spoken Audio" : "Mute Spoken Audio"}
+            >
+              {isMuted ? "🔇 Muted" : "🔊 Audio"}
+            </button>
+
+            <button
+              type="button"
               className="headerControlBtn"
               onClick={() => {
                 setContextData({
@@ -585,6 +696,7 @@ export default function MissionControlPage() {
             <strong>CEO Proactive Observation:</strong> Found 3 pricing vulnerabilities in Zomato & Swiggy commission structures. Would you like a differentiated pitch deck drafted?
           </div>
           <button
+            type="button"
             className="btnInsightAction"
             onClick={() => handleSendMessage("Yes, draft the differentiated pitch deck.")}
           >
@@ -595,7 +707,11 @@ export default function MissionControlPage() {
         {/* Conversation Stream */}
         <div className="chatMessageFeed">
           {messages.map((msg) => (
-            <ChatBubble key={msg.id} message={msg} />
+            <ChatBubble
+              key={msg.id}
+              message={msg}
+              onSpeak={(spokenText) => speakText(spokenText)}
+            />
           ))}
 
           {/* Inline Live Task Card directly inside chat */}
@@ -612,7 +728,7 @@ export default function MissionControlPage() {
             />
           )}
 
-          {isProcessing && <ThinkingBubble text="CEO OS reasoning and dispatching directives..." />}
+          {isProcessing && <ThinkingBubble text="Jarvis and CEO OS dispatching directives..." />}
           <div ref={messagesEndRef} />
         </div>
 

@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from jarvis.backend.config.secrets import JarvisSecretsManager, redact_secrets
@@ -73,6 +73,8 @@ class GeminiAuthManager:
         # Load RSA private key
         key_bytes = sa["private_key"].encode("utf-8")
         private_key = load_pem_private_key(key_bytes, password=None)
+        if not isinstance(private_key, rsa.RSAPrivateKey):
+            raise ValueError("Service account private key is not an RSA private key")
 
         signature = private_key.sign(signing_input, padding.PKCS1v15(), hashes.SHA256())
         sig_b64 = _b64url_encode(signature)
@@ -140,7 +142,7 @@ class GeminiAuthManager:
                 raise RuntimeError(redact_secrets(err_msg))
 
             data = resp.json()
-            access_token = data["access_token"]
+            access_token = str(data["access_token"])
             expires_in = int(data.get("expires_in", 3600))
 
             self._cached_token = GoogleToken(

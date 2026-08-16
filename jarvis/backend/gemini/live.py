@@ -27,7 +27,7 @@ class GeminiLiveSocket:
     ) -> None:
         self.auth_manager = auth_manager
         self.config = config
-        self._ws: websockets.WebSocketClientProtocol | None = None
+        self._ws: Any = None
         self._is_connected: bool = False
 
     @property
@@ -76,27 +76,26 @@ class GeminiLiveSocket:
             self._is_connected = True
 
             # Send Setup Handshake
-            setup_payload = {
-                "setup": {
-                    "model": model_resource,
-                    "generationConfig": {
-                        "temperature": self.config.temperature,
-                        "responseModalities": ["AUDIO"],
-                        "speechConfig": {
-                            "voiceConfig": {
-                                "prebuiltVoiceConfig": {
-                                    "voiceName": self.config.voice_name,
-                                }
+            setup_dict: dict[str, Any] = {
+                "model": model_resource,
+                "generationConfig": {
+                    "temperature": self.config.temperature,
+                    "responseModalities": ["AUDIO"],
+                    "speechConfig": {
+                        "voiceConfig": {
+                            "prebuiltVoiceConfig": {
+                                "voiceName": self.config.voice_name,
                             }
-                        },
+                        }
                     },
-                    "systemInstruction": {"parts": [{"text": self.config.system_instruction}]},
-                }
+                },
+                "systemInstruction": {"parts": [{"text": self.config.system_instruction}]},
             }
 
             if tool_declarations:
-                setup_payload["setup"]["tools"] = [{"functionDeclarations": tool_declarations}]
+                setup_dict["tools"] = [{"functionDeclarations": tool_declarations}]
 
+            setup_payload: dict[str, Any] = {"setup": setup_dict}
             await self._ws.send(json.dumps(setup_payload))
             logger.info("Sent Gemini Live setup handshake for model %s", self.config.model_name)
 

@@ -285,8 +285,14 @@ class JarvisToolRegistry:
             if inspect.iscoroutinefunction(handler):
                 result = await handler(**arguments)
             else:
-                result = handler(**arguments)
-            return result
+                sync_res = handler(**arguments)
+                if inspect.isawaitable(sync_res):
+                    result = await sync_res
+                else:
+                    result = sync_res
+            if isinstance(result, dict):
+                return result
+            return {"result": result}
         except Exception as exc:
             logger.exception("Error executing tool '%s'", name)
             return {"status": "ERROR", "error": str(exc)}

@@ -39,7 +39,7 @@ services:
       CEO_OS_VISION_ENABLED: "${CEO_OS_VISION_ENABLED:-false}"
       CEO_OS_VOICE_ENABLED: "${CEO_OS_VOICE_ENABLED:-false}"
       LANGGRAPH_STRICT_MSGPACK: "true"
-    ports: ["8000:8000"]
+    ports: ["${CEO_OS_API_PORT:-8000}:8000"]
     volumes: ["workspace_data:/data/workspaces"]
     depends_on:
       postgres: { condition: service_healthy }

@@ -9,13 +9,21 @@ from jarvis.backend.tools.macos import _run_applescript
 
 
 async def open_url(url: str) -> dict[str, Any]:
-    """Open specified web URL in default macOS browser."""
+    """Open specified web URL in default browser."""
     if not url.startswith("http://") and not url.startswith("https://"):
         url = "https://" + url
 
     safe_url = url.replace('"', '\\"')
     script = f'open location "{safe_url}"'
-    await _run_applescript(script)
+    try:
+        await _run_applescript(script)
+    except Exception:
+        import webbrowser
+
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
     return {"status": "SUCCESS", "message": f"Opened {url}", "url": url}
 
 

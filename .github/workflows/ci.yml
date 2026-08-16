@@ -12,7 +12,7 @@ concurrency:
 
 jobs:
   python-quality:
-    name: Python Lint, Typecheck & Test Suite
+    name: Python Lint, Strict Mypy, Tests & Packaging
     runs-on: macos-latest
     steps:
       - name: Checkout repository
@@ -30,43 +30,56 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          uv sync --all-extras
+          uv sync --all-groups
 
-      - name: Ruff Lint & Format Check
+      - name: Ruff Lint Check
         run: |
           uv run ruff check .
           uv run ruff format --check .
 
-      - name: Mypy Static Type Analysis
+      - name: Strict Mypy Type Analysis
         run: |
-          uv run mypy apps/api/src/ceo_os_api core agents tools memory computer browser vision voice
+          uv run mypy
 
       - name: Pytest Unit & Integration Tests
         run: |
           uv run pytest -q
 
-      - name: Verify Wheel Packaging
+      - name: Verify Wheel Packaging & Import Smoke Test
         run: |
           uv build
           ls -la dist/
+          uv run pytest tests/test_import_smoke.py
 
   dashboard-build:
-    name: Next.js Dashboard Build
+    name: Next.js Dashboard Quality Gates
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "npm"
           cache-dependency-path: apps/dashboard/package-lock.json
 
       - name: Install Dashboard dependencies
         working-directory: apps/dashboard
         run: npm ci
+
+      - name: ESLint Check
+        working-directory: apps/dashboard
+        run: npm run lint
+
+      - name: TypeScript Compile Check
+        working-directory: apps/dashboard
+        run: npm run typecheck
+
+      - name: Dashboard Unit Tests
+        working-directory: apps/dashboard
+        run: npm test
 
       - name: Next.js Production Build
         working-directory: apps/dashboard

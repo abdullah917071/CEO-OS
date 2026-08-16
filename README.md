@@ -4,9 +4,10 @@
 
 <img src="https://img.shields.io/badge/Gemini%20Live-Realtime%20API-4285F4?style=for-the-badge&logo=google&logoColor=white" />
 <img src="https://img.shields.io/badge/Python-3.12+-3776AB?style=for-the-badge&logo=python&logoColor=white" />
-<img src="https://img.shields.io/badge/Next.js-14-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" />
+<img src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" />
+<img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" />
 <img src="https://img.shields.io/badge/macOS-Apple%20Silicon-000000?style=for-the-badge&logo=apple&logoColor=white" />
-<img src="https://img.shields.io/badge/Tests-189%20Passing-22C55E?style=for-the-badge&logo=pytest&logoColor=white" />
+<img src="https://img.shields.io/badge/Tests-236%20Passing-22C55E?style=for-the-badge&logo=pytest&logoColor=white" />
 <img src="https://img.shields.io/badge/Agents-270+-8B5CF6?style=for-the-badge&logo=openai&logoColor=white" />
 
 **One intelligent CEO agent that turns owner goals into auditable, evidence-backed work — delegated across a modular fleet of 270+ specialist agents, with a production-ready macOS voice assistant powered by Google Gemini Live API.**
@@ -251,7 +252,7 @@ make dashboard  # Next.js dashboard at http://localhost:3000
 ### 6. Verify Installation
 
 ```bash
-make check   # Runs all 189 tests + lint + type checks
+make check   # Runs all 236 tests + full Ruff lint + strict Mypy + Next.js build + wheel build
 ```
 
 ---
@@ -293,12 +294,13 @@ uv run pytest tests/test_jarvis.py           # Voice assistant tests
 uv run pytest tests/test_ceo_agent.py        # ReAct reasoning tests
 uv run pytest tests/test_hermes_agent.py     # Multi-agent tests
 uv run pytest tests/test_gstack.py           # Dev workflow tests
+uv run pytest tests/test_import_smoke.py      # Module import smoke tests
 
-# Run checks
-make check  # lint + type check + tests + dashboard build
+# Run complete quality gate checks
+make check  # lint + type check + tests + frontend build + wheel packaging
 ```
 
-**Current Status: 189 tests passing** ✅
+**Current Status: 236 tests passing** ✅
 
 ---
 

@@ -83,17 +83,20 @@ class JarvisSecretsManager:
             fallback = Path("./data/secrets/jarvis_service_account.json")
             if fallback.exists():
                 try:
-                    data = json.loads(fallback.read_text(encoding="utf-8"))
-                    self._cached_service_account = data
-                    return data
+                    raw_data = json.loads(fallback.read_text(encoding="utf-8"))
+                    if isinstance(raw_data, dict):
+                        self._cached_service_account = raw_data
+                        return raw_data
                 except Exception as exc:
                     logger.warning("Failed reading fallback service account: %s", exc)
             return None
 
         try:
-            data = json.loads(self.secret_path.read_text(encoding="utf-8"))
-            self._cached_service_account = data
-            return data
+            raw_data = json.loads(self.secret_path.read_text(encoding="utf-8"))
+            if isinstance(raw_data, dict):
+                self._cached_service_account = raw_data
+                return raw_data
+            return None
         except Exception as exc:
             logger.error("Failed to load service account: %s", redact_secrets(str(exc)))
             return None

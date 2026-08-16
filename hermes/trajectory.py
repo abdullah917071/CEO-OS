@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from hermes.contracts import HermesTrajectoryRecord
 
@@ -38,13 +39,14 @@ class HermesTrajectoryStore:
         """Export all recorded trajectories to a JSONL dataset for Hermes fine-tuning."""
         lines = []
         for traj in self._trajectories.values():
-            entry = {
+            conversations: list[dict[str, str]] = [
+                {"from": "system", "value": traj.system_prompt},
+                {"from": "human", "value": traj.objective},
+            ]
+            entry: dict[str, Any] = {
                 "trajectory_id": traj.trajectory_id,
                 "task_id": traj.task_id,
-                "conversations": [
-                    {"from": "system", "value": traj.system_prompt},
-                    {"from": "human", "value": traj.objective},
-                ],
+                "conversations": conversations,
             }
             for step in traj.steps:
                 thought_str = f"<thought>\n{step.thought}\n</thought>\n" if step.thought else ""
@@ -55,7 +57,7 @@ class HermesTrajectoryStore:
                         "arguments": step.tool_call.arguments,
                     }
                     call_str = f"<tool_call>\n{json.dumps(call_dict)}\n</tool_call>"
-                entry["conversations"].append(
+                conversations.append(
                     {
                         "from": "gpt",
                         "value": f"{thought_str}{call_str}".strip(),
@@ -63,7 +65,7 @@ class HermesTrajectoryStore:
                 )
 
                 if step.tool_response:
-                    entry["conversations"].append(
+                    conversations.append(
                         {
                             "from": "tool",
                             "value": (
@@ -73,7 +75,7 @@ class HermesTrajectoryStore:
                         }
                     )
 
-            entry["conversations"].append({"from": "gpt", "value": traj.final_response})
+            conversations.append({"from": "gpt", "value": traj.final_response})
             lines.append(json.dumps(entry))
 
         content = "\n".join(lines)

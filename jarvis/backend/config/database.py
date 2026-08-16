@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 class JarvisDatabase:
     """SQLite database manager for persistent Jarvis configurations, sessions, and telemetry."""
 
-    def __init__(self, db_path: Path) -> None:
-        self.db_path = db_path
+    def __init__(self, db_path: Path | None = None) -> None:
+        self.db_path = db_path or Path("./data/jarvis/jarvis.sqlite3")
         try:
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
         except Exception:

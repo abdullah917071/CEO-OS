@@ -84,4 +84,39 @@ ignore = ["E402", "E501"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["apps.api.src.ceo_os_api", "core", "agents", "tools", "memory", "computer", "browser", "vision", "voice"]
+packages = [
+  "apps.api.src.ceo_os_api",
+  "core",
+  "agents",
+  "tools",
+  "memory",
+  "computer",
+  "browser",
+  "vision",
+  "voice",
+  "communications",
+  "skills",
+  "ceo_agent",
+  "jarvis",
+  "hermes",
+  "gstack",
+  "agency",
+  "proactive",
+  "production",
+  "intelligence",
+  "workflows",
+]
+
+[[tool.mypy.overrides]]
+module = [
+  "sounddevice",
+  "sounddevice.*",
+  "openwakeword",
+  "openwakeword.*",
+  "openwakeword.model",
+  "onnxruntime",
+  "onnxruntime.*",
+  "numpy",
+  "numpy.*",
+]
+ignore_missing_imports = true

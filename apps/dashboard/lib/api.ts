@@ -1,8 +1,80 @@
-export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-// WS is the bare WebSocket host — consumers append their own path (e.g. /ws/tasks)
-export const WS = (process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000").replace(/\/ws\/.*$/, "");
-// The legacy events stream for the shell
-export const WS_EVENTS = `${WS}/ws/events`;
-export async function requestJson<T>(path:string, init?:RequestInit):Promise<T> { const response=await fetch(`${API}${path}`,{cache:"no-store",...init}); if(!response.ok){let detail=`${response.status} ${response.statusText}`; try{const body=await response.json() as {detail?:unknown}; if(typeof body.detail==="string") detail=body.detail;}catch{} throw new Error(detail);} return await response.json() as T; }
-export function formatDate(value:string):string { return new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"}).format(new Date(value)); }
-export function summarizePayload(payload:Record<string,unknown>):string { for(const key of ["objective","status","capability","message"]){if(typeof payload[key]==="string") return String(payload[key]);} const keys=Object.keys(payload); return keys.length?keys.slice(0,3).join(", "):"No additional detail"; }
+/**
+ * Dynamic API and WebSocket configuration for CEO OS Dashboard.
+ * Supports localhost development, LAN access, remote deployments, reverse proxies, and HTTPS/WSS.
+ */
+
+export function getApiUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+  }
+  if (typeof window !== "undefined") {
+    // If frontend is accessed remotely or via domain on port 3000, connect to port 8000 by default
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
+    if (window.location.port === "3000") {
+      return `${protocol}//${hostname}:8000`;
+    }
+    return window.location.origin;
+  }
+  return "http://localhost:8000";
+}
+
+export function getWsUrl(path: string = ""): string {
+  const cleanPath = path ? (path.startsWith("/") ? path : `/${path}`) : "";
+  if (process.env.NEXT_PUBLIC_WS_URL) {
+    const base = process.env.NEXT_PUBLIC_WS_URL.replace(/\/ws\/.*$/, "").replace(/\/$/, "");
+    return `${base}${cleanPath}`;
+  }
+  if (typeof window !== "undefined") {
+    const wsProto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const hostname = window.location.hostname;
+    if (window.location.port === "3000") {
+      return `${wsProto}//${hostname}:8000${cleanPath}`;
+    }
+    return `${wsProto}//${window.location.host}${cleanPath}`;
+  }
+  return `ws://localhost:8000${cleanPath}`;
+}
+
+export const API = getApiUrl();
+export const WS = getWsUrl();
+export const WS_EVENTS = getWsUrl("/ws/events");
+
+export async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = typeof window !== "undefined" ? getApiUrl() : API;
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const response = await fetch(`${base}${cleanPath}`, {
+    cache: "no-store",
+    ...init,
+  });
+
+  if (!response.ok) {
+    let detail = `${response.status} ${response.statusText}`;
+    try {
+      const body = (await response.json()) as { detail?: unknown; message?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+      else if (typeof body.message === "string") detail = body.message;
+    } catch {}
+    throw new Error(detail);
+  }
+  return (await response.json()) as T;
+}
+
+export function formatDate(value: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+export function summarizePayload(payload: Record<string, unknown>): string {
+  for (const key of ["objective", "status", "capability", "message", "title", "summary"]) {
+    if (typeof payload[key] === "string") return String(payload[key]);
+  }
+  const keys = Object.keys(payload);
+  return keys.length ? keys.slice(0, 3).join(", ") : "No additional detail";
+}
