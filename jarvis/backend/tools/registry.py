@@ -253,6 +253,44 @@ class JarvisToolRegistry:
             handler=media.previous_track,
         )
 
+        async def _delegate_to_joice_handler(
+            goal: str, priority: str = "high"
+        ) -> dict[str, Any]:
+            logger.info("Jarvis delegating goal to Joice: %s (priority: %s)", goal, priority)
+            return {
+                "status": "DELEGATED",
+                "assigned_to": "Joice (CEO Agent)",
+                "goal": goal,
+                "priority": priority,
+                "acknowledgement": "I'll ask Joice to handle that.",
+            }
+
+        self.register_tool(
+            name="delegate_to_joice",
+            description=(
+                "Delegate complex research, multi-agent analysis, project planning, coding, "
+                "or long-running execution to Joice (CEO OS primary intelligence). "
+                "Use this whenever a user request requires deep reasoning, complex planning, "
+                "or multiple specialist agents rather than immediate simple device actions."
+            ),
+            parameters_schema={
+                "type": "OBJECT",
+                "properties": {
+                    "goal": {
+                        "type": "STRING",
+                        "description": "The exact goal, research objective, or complex task for Joice",
+                    },
+                    "priority": {
+                        "type": "STRING",
+                        "description": "Task priority: normal, high, or urgent",
+                        "enum": ["normal", "high", "urgent"],
+                    },
+                },
+                "required": ["goal"],
+            },
+            handler=_delegate_to_joice_handler,
+        )
+
     def get_gemini_declarations(self) -> list[dict[str, Any]]:
         """Format enabled tools into Gemini Live function declarations."""
         declarations: list[dict[str, Any]] = []

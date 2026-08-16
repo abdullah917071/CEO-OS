@@ -75,21 +75,34 @@ class GeminiLiveSocket:
             )
             self._is_connected = True
 
-            # Send Setup Handshake with AUDIO modality and speech config
+            gen_config: dict[str, Any] = {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {
+                            "voiceName": self.config.voice_name,
+                        }
+                    }
+                },
+                "thinkingConfig": {
+                    "thinkingLevel": self.config.thinking_level,
+                },
+            }
+            if self.config.temperature is not None:
+                gen_config["temperature"] = self.config.temperature
+
+            # Send Setup Handshake with low-latency VAD, Kore voice, and low thinking level
             setup_dict: dict[str, Any] = {
                 "model": model_resource,
-                "generationConfig": {
-                    "temperature": self.config.temperature,
-                    "responseModalities": ["AUDIO"],
-                    "speechConfig": {
-                        "voiceConfig": {
-                            "prebuiltVoiceConfig": {
-                                "voiceName": self.config.voice_name,
-                            }
-                        }
-                    },
-                },
+                "generationConfig": gen_config,
                 "systemInstruction": {"parts": [{"text": self.config.system_instruction}]},
+                "voiceActivityDetection": {
+                    "mode": "AUTOMATIC",
+                    "silenceDurationMs": self.config.vad_silence_duration_ms,
+                    "prefixPaddingMs": self.config.vad_prefix_padding_ms,
+                },
+                "inputTranscriptionConfig": {"enabled": True},
+                "outputTranscriptionConfig": {"enabled": True},
             }
 
             if tool_declarations:
@@ -97,7 +110,12 @@ class GeminiLiveSocket:
 
             setup_payload: dict[str, Any] = {"setup": setup_dict}
             await self._ws.send(json.dumps(setup_payload))
-            logger.info("Sent Gemini Live setup handshake for model %s", self.config.model_name)
+            logger.info(
+                "Sent Gemini Live setup handshake: model=%s, voice=%s, thinkingLevel=%s",
+                self.config.model_name,
+                self.config.voice_name,
+                self.config.thinking_level,
+            )
 
         except Exception as exc:
             self._is_connected = False

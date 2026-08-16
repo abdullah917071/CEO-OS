@@ -222,3 +222,20 @@ async def test_jarvis_api_endpoints():
         # Logs
         resp = await client.get("/api/jarvis/logs")
         assert resp.status_code == 200
+
+        # Test Jarvis Chat with Simple Command
+        chat_resp = await client.post(
+            "/api/jarvis/chat",
+            json={"message": "Jarvis, mute the Mac"},
+        )
+        assert chat_resp.status_code == 200
+        assert chat_resp.json()["response"] == "Muted."
+
+        # Test Jarvis Chat with Complex Directive Delegating to Joice
+        del_resp = await client.post(
+            "/api/jarvis/chat",
+            json={"message": "Jarvis, analyze my business and make a marketing strategy"},
+        )
+        assert del_resp.status_code == 200
+        assert del_resp.json()["response"] == "I'll ask Joice to handle that."
+

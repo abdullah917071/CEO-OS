@@ -299,13 +299,56 @@ async def jarvis_chat(req: JarvisChatRequest) -> dict[str, Any]:
     tool_calls_executed: list[dict[str, Any]] = []
     reply_text = ""
 
+    # Delegation to Joice for complex tasks / multi-agent work
+    if any(
+        kw in clean_lower
+        for kw in (
+            "analyze",
+            "strategy",
+            "competitor",
+            "research",
+            "plan a",
+            "build a",
+            "delegate to joice",
+            "ask joice",
+            "write code",
+            "marketing",
+            "financial report",
+        )
+    ):
+        res = await mgr.tool_registry.execute_tool("delegate_to_joice", {"goal": raw_msg})
+        tool_calls_executed.append(
+            {"name": "delegate_to_joice", "arguments": {"goal": raw_msg}, "output": res}
+        )
+        reply_text = "I'll ask Joice to handle that."
+
     # Direct intent execution
-    if "open youtube" in clean_lower or clean_lower == "youtube":
+    elif "open youtube" in clean_lower or clean_lower == "youtube":
         q = clean_lower.replace("open youtube", "").replace("search for", "").strip()
         args = {"query": q} if q else {}
         res = await mgr.tool_registry.execute_tool("open_youtube", args)
         tool_calls_executed.append({"name": "open_youtube", "arguments": args, "output": res})
-        reply_text = "Opened YouTube, sir." if not q else f"Searching YouTube for '{q}', sir."
+        reply_text = "Opening YouTube." if not q else f"Searching YouTube for '{q}'."
+
+    elif "mute" in clean_lower and "unmute" not in clean_lower:
+        res = await mgr.tool_registry.execute_tool("mute", {})
+        tool_calls_executed.append({"name": "mute", "arguments": {}, "output": res})
+        reply_text = "Muted."
+
+    elif "unmute" in clean_lower:
+        res = await mgr.tool_registry.execute_tool("unmute", {})
+        tool_calls_executed.append({"name": "unmute", "arguments": {}, "output": res})
+        reply_text = "Unmuted."
+
+    elif "volume down" in clean_lower or "lower volume" in clean_lower or "turn volume down" in clean_lower:
+        res = await mgr.tool_registry.execute_tool("set_volume", {"level": 30})
+        tool_calls_executed.append({"name": "set_volume", "arguments": {"level": 30}, "output": res})
+        reply_text = "Volume lowered."
+
+    elif "volume up" in clean_lower or "raise volume" in clean_lower or "turn volume up" in clean_lower:
+        res = await mgr.tool_registry.execute_tool("set_volume", {"level": 70})
+        tool_calls_executed.append({"name": "set_volume", "arguments": {"level": 70}, "output": res})
+        reply_text = "Volume raised."
 
     elif clean_lower.startswith("open url ") or (
         "open " in clean_lower and ("http" in clean_lower or ".com" in clean_lower)
@@ -315,7 +358,7 @@ async def jarvis_chat(req: JarvisChatRequest) -> dict[str, Any]:
             url = f"https://{url}"
         res = await mgr.tool_registry.execute_tool("open_url", {"url": url})
         tool_calls_executed.append({"name": "open_url", "arguments": {"url": url}, "output": res})
-        reply_text = f"Opened {url}, sir."
+        reply_text = "Opening it."
 
     elif clean_lower.startswith("search google") or clean_lower.startswith("search "):
         q = (
@@ -328,18 +371,18 @@ async def jarvis_chat(req: JarvisChatRequest) -> dict[str, Any]:
         tool_calls_executed.append(
             {"name": "search_google", "arguments": {"query": q}, "output": res}
         )
-        reply_text = f"Searching Google for '{q}', sir."
+        reply_text = f"Searching Google for '{q}'."
 
     elif "spotify" in clean_lower or "music" in clean_lower:
         res = await mgr.tool_registry.execute_tool("open_spotify", {})
         tool_calls_executed.append({"name": "open_spotify", "arguments": {}, "output": res})
-        reply_text = "Spotify is open and ready, sir."
+        reply_text = "Opening Spotify."
 
     elif "system stats" in clean_lower or "cpu" in clean_lower or "battery" in clean_lower:
         res = await mgr.tool_registry.execute_tool("get_system_stats", {})
         tool_calls_executed.append({"name": "get_system_stats", "arguments": {}, "output": res})
         sys_info = res.get("system", "macOS")
-        reply_text = f"System status online. Running {sys_info}, sir."
+        reply_text = f"System online: {sys_info}."
 
     elif clean_lower.startswith("open "):
         app_name = clean_lower.replace("open ", "").strip().title()
@@ -347,11 +390,11 @@ async def jarvis_chat(req: JarvisChatRequest) -> dict[str, Any]:
         tool_calls_executed.append(
             {"name": "open_application", "arguments": {"application": app_name}, "output": res}
         )
-        reply_text = f"Launched {app_name}, sir."
+        reply_text = f"Opening {app_name}."
 
     else:
-        # General assistance
-        reply_text = f"Understood, sir. Processing directive: '{raw_msg}'."
+        # Concise conversational fallback
+        reply_text = f"Processing '{raw_msg}'."
 
     # Broadcast tool execution events
     for tc in tool_calls_executed:

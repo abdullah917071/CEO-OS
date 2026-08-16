@@ -342,37 +342,59 @@ export default function JarvisStudioPage() {
   };
 
   const quickCommands = [
-    "Jarvis, open YouTube",
-    "Jarvis, get system stats",
-    "Jarvis, open Spotify and play focus music",
-    "Jarvis, search Google for Apple Silicon benchmarks",
+    "Jarvis, open WhatsApp",
+    "Jarvis, mute the Mac",
+    "Jarvis, open Spotify",
+    "Jarvis, analyze my business and make a marketing strategy",
   ];
 
   const contextContent = (
     <>
       <div className="contextPanelHeader">
-        <span>Gemini Live Engine</span>
-        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>Bidirectional</span>
+        <span>Gemini 3.1 Flash Live</span>
+        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>Voice Interface</span>
       </div>
 
       <div className="contextPanelBody">
         <div className="contextSection">
           <div className="contextSectionTitle">Real-Time Audio Telemetry</div>
           <div className="metricKeyValue">
-            <span className="metricKey">Gemini Live Status</span>
-            <span className="metricVal" style={{ color: "#10B981" }}>Active (PCM 24kHz)</span>
-          </div>
-          <div className="metricKeyValue">
-            <span className="metricKey">Mic Sample Rate</span>
-            <span className="metricVal">16,000 Hz Mono</span>
+            <span className="metricKey">Model</span>
+            <span className="metricVal" style={{ color: "var(--accent-primary)", fontWeight: 600 }}>
+              gemini-3.1-flash-live-preview
+            </span>
           </div>
           <div className="metricKeyValue">
             <span className="metricKey">Voice Profile</span>
-            <span className="metricVal">Puck (Multimodal)</span>
+            <span className="metricVal">Kore (Assistant-like)</span>
           </div>
           <div className="metricKeyValue">
-            <span className="metricKey">Barge-in Interrupt</span>
-            <span className="metricVal" style={{ color: "#10B981" }}>Enabled (Sub-50ms)</span>
+            <span className="metricKey">Thinking Level</span>
+            <span className="metricVal">low (Ultra Low Latency)</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Input Stream</span>
+            <span className="metricVal">16 kHz PCM16 (30ms chunks)</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Output Stream</span>
+            <span className="metricVal">24 kHz PCM16 Mono</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">VAD Silence Duration</span>
+            <span className="metricVal">500 ms (~0.5s turn completion)</span>
+          </div>
+          <div className="metricKeyValue">
+            <span className="metricKey">Barge-in / Interrupt</span>
+            <span className="metricVal" style={{ color: "#10B981" }}>Enabled (Instant Flush)</span>
+          </div>
+        </div>
+
+        <div className="contextSection">
+          <div className="contextSectionTitle">System Architecture</div>
+          <div style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: 1.5 }}>
+            <strong>Fast Interface:</strong> Jarvis handles instant macOS controls with minimal thinking.<br />
+            <strong>Deep Reasoning:</strong> Complex research, multi-agent pipelines, and coding are automatically delegated to <strong>Joice</strong>.
           </div>
         </div>
 
@@ -484,7 +506,7 @@ export default function JarvisStudioPage() {
                   : "Jarvis Standby (Click 'Start Live Voice' or say 'Jarvis')"}
               </strong>
               <div style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
-                Google Gemini 2.0 Flash Multimodal Live · Bidirectional Audio Streaming
+                Google Gemini 3.1 Flash Live · Kore Voice · Low Thinking Level · Bidirectional Audio
               </div>
             </div>
           </div>

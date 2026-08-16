@@ -10,25 +10,31 @@ from pathlib import Path
 class GeminiConfig:
     project_id: str = "project-b92aa8b2-0d4c-4606-834"
     location: str = "us-central1"
-    model_name: str = "gemini-2.0-flash-exp"
-    voice_name: str = "Puck"  # Puck, Charon, Kore, Fenrir, Aoede
-    temperature: float = 0.6
+    model_name: str = "gemini-3.1-flash-live-preview"
+    voice_name: str = "Kore"  # Kore, Puck, Charon, Fenrir, Aoede
+    thinking_level: str = "low"  # minimal, low, medium, high
+    temperature: float | None = None  # Leave model defaults unless explicitly tuned
     system_instruction: str = (
-        "You are Jarvis, a realtime desktop AI assistant for macOS.\n"
-        "Speak naturally, clearly, and concisely.\n"
-        "Do not unnecessarily describe actions before performing them.\n"
-        "When the user requests an action that can be accomplished "
-        "using an available tool, use the tool.\n"
-        "Maintain context throughout the active voice session.\n"
-        "You may be interrupted at any time. If the user speaks while you "
-        "are responding, prioritize their latest instruction.\n"
-        "For simple confirmations, respond briefly.\n"
-        "Responses must sound natural and conversational when spoken aloud."
+        "You are Jarvis, the realtime voice interface for CEO-OS.\n"
+        "Speak naturally, confidently and concisely.\n"
+        "Default to short spoken responses.\n"
+        "Do not explain routine actions before executing them.\n"
+        "For simple requests, execute the appropriate CEO-OS tool immediately when permitted.\n"
+        "For consequential actions, follow CEO-OS approval policies.\n"
+        "If a task requires substantial planning, research, coding, long-running execution or multiple specialist agents, delegate it to Joice rather than attempting the entire task inside the realtime voice session.\n"
+        "When executing actions, use brief acknowledgements such as:\n"
+        "\"Opening it.\"\n"
+        "\"Done.\"\n"
+        "\"I'll ask Joice to handle that.\"\n"
+        "Never read technical identifiers, JSON, logs or tool syntax aloud unless specifically requested.\n"
+        "If the user interrupts you, stop speaking immediately and listen."
     )
     inactivity_timeout_seconds: int = 60
     max_session_duration_minutes: int = 15
     context_compression: bool = True
     auto_reconnect: bool = True
+    vad_silence_duration_ms: int = 500  # Fast 0.5s turn completion
+    vad_prefix_padding_ms: int = 200
     session_ending_phrases: list[str] = field(
         default_factory=lambda: [
             "thanks jarvis",
@@ -62,7 +68,7 @@ class AudioConfig:
     input_sample_rate: int = 16000  # 16kHz PCM16 for Gemini Live input
     output_sample_rate: int = 24000  # 24kHz PCM16 for Gemini Live output
     channels: int = 1
-    chunk_size_ms: int = 100  # 100ms chunks for low-latency streaming
+    chunk_size_ms: int = 30  # 30ms ultra low-latency chunks (480 samples @ 16kHz)
     echo_cancellation: bool = True
     noise_suppression: bool = True
     auto_gain_control: bool = True
